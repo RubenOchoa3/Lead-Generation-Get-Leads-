@@ -1,0 +1,2 @@
+# Lead data contains third-party personal contact info; keep it out of git
+data/
