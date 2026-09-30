@@ -18,13 +18,15 @@ import psycopg
 from fastapi import FastAPI, Header, HTTPException, Request
 from psycopg.rows import dict_row
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 WEBHOOK_TOKEN = os.environ.get("INSTANTLY_WEBHOOK_TOKEN", "")
 
 app = FastAPI(title="RS Lead Gen collector", version="0.1")
 
 
 def db():
+    if not DATABASE_URL:
+        raise HTTPException(status_code=503, detail="DATABASE_URL is not configured")
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
@@ -50,9 +52,15 @@ def _parse_ts(v):
 
 @app.get("/health")
 def health():
-    with db() as conn:
-        n = conn.execute("select count(*) as n from email_events").fetchone()["n"]
-    return {"ok": True, "events": n}
+    """Always 200 so Railway's healthcheck passes; the body says whether the database is reachable."""
+    if not DATABASE_URL:
+        return {"ok": False, "db": "not configured", "events": None}
+    try:
+        with psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=5) as conn:
+            n = conn.execute("select count(*) as n from email_events").fetchone()["n"]
+        return {"ok": True, "db": "connected", "events": n}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "db": f"error: {type(exc).__name__}", "events": None}
 
 
 @app.post("/api/webhooks/instantly")
