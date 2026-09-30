@@ -2,6 +2,12 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-09-30 (cloud session, outreach system plan)
+- Wrote `docs/OUTREACH_SYSTEM_PLAN.md`: audit, provider comparison, capacity math, costs, ramp plan, task ownership.
+- Audit surprises: Instantly is already paid (Hyper Growth $97/mo, renews 2026-10-24) and has the MAIN domain mailboxes as campaign senders; InboxKit has no plan or mailboxes yet; 11 of 12 lookalike domains connected; main domain restored to Squarespace after an accidental nameserver switch and removed from InboxKit.
+- Recommendation: InboxKit Google mailboxes (3 per lookalike domain) + Instantly (already paid) + GetLeads. Pilot ~$119/mo extra for ~400 new/day; full 1,000/day needs 30 domains, ~$316/mo extra.
+- Next: Ruben answers spend ceiling, cadence, address, Instantly keep/cancel; then AI executes purchases and setup on authorisation.
+
 ## 2026-09-30 (cloud session, decision: no Instantly)
 - Ruben: Instantly is not being used, so do not connect it. The Instantly webhook token, the six existing Instantly webhooks and the old Railway app (`web-production-031d12`) are all left alone; nothing to repoint.
 - Railway project `rs-lead-gen-os` and Supabase project exist (schema applied) but the collector has no email source yet. Open question: which tool will send the outreach emails (Gmail? something else?) so the collector can ingest from it instead of Instantly webhooks.
