@@ -2,6 +2,11 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-09-30 (cloud session, data platform)
+- Built the collector for Railway + Supabase: `db/migrations/001_init.sql`, `services/collector/` (FastAPI webhook receiver, `/api/metrics`, `/api/replies`, reply classifier cron), `pipeline/load_leads.py`, `railway.json`, `.env.example`, `docs/DATA_PLATFORM.md`. Tested end to end against a local Postgres.
+- Railway and Supabase are NOT connected to the Claude account yet, so the projects are not created. Instantly already has 6 webhooks pointed at an older Railway app (`web-production-031d12`); decide keep vs replace before repointing.
+- Next: connect Railway + Supabase connectors (or do the 4 setup steps in docs/DATA_PLATFORM.md by hand), load the two lead lists, repoint webhooks.
+
 ## 2026-09-30 (cloud session)
 - Ran a 25-lead ICP test in Bakersfield outside healthcare (property mgmt, offices, industrial, manufacturing, schools). 141 rows, 79 businesses, top 25 delivered: 25 real decision makers (17 facilities-titled), 25 verified emails, 24 direct phones. 141 credits. Output under `data/test_bakersfield_icp/` (git-ignored).
 - Extended `pipeline/score_leads.py`: non-healthcare ICP classifier, plant/warehouse managers rank as facilities buyers, assistants do not, and companies already delivered in an earlier list are skipped.
