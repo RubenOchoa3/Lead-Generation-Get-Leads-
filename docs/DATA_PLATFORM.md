@@ -13,12 +13,12 @@ Instantly webhooks ──> Railway: services/collector (FastAPI) ──> Supabas
                                           views: lead_funnel, performance_by_* , /api/metrics
 ```
 
-## What already exists
+## Decision (2026-09-30): Instantly is not used
 
-Instantly currently has six webhooks (all standard event types plus one "all events") pointed at
-`https://web-production-031d12.up.railway.app/api/webhooks/instantly`. That is an earlier Railway
-service whose code is not in this repo. Decide whether to keep it or replace it with this collector
-before repointing the webhooks. Do not delete the old service until the new one has received events.
+Ruben confirmed Instantly is not part of the stack. Do not connect it, do not set an Instantly
+webhook token, and leave the six old Instantly webhooks and the earlier Railway app
+(`web-production-031d12`) untouched. The `/api/webhooks/instantly` endpoint in the collector stays
+as dormant code until the real email source is chosen; step 4 below is skipped.
 
 ## One-time setup (about 20 minutes)
 

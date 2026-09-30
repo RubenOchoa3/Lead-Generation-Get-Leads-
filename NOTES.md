@@ -2,6 +2,11 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-09-30 (cloud session, decision: no Instantly)
+- Ruben: Instantly is not being used, so do not connect it. The Instantly webhook token, the six existing Instantly webhooks and the old Railway app (`web-production-031d12`) are all left alone; nothing to repoint.
+- Railway project `rs-lead-gen-os` and Supabase project exist (schema applied) but the collector has no email source yet. Open question: which tool will send the outreach emails (Gmail? something else?) so the collector can ingest from it instead of Instantly webhooks.
+- Next: answer that question, then finish Railway (repo source, DATABASE_URL, domain) and load the two lead lists.
+
 ## 2026-09-30 (cloud session, data platform)
 - Built the collector for Railway + Supabase: `db/migrations/001_init.sql`, `services/collector/` (FastAPI webhook receiver, `/api/metrics`, `/api/replies`, reply classifier cron), `pipeline/load_leads.py`, `railway.json`, `.env.example`, `docs/DATA_PLATFORM.md`. Tested end to end against a local Postgres.
 - Railway and Supabase are NOT connected to the Claude account yet, so the projects are not created. Instantly already has 6 webhooks pointed at an older Railway app (`web-production-031d12`); decide keep vs replace before repointing.
