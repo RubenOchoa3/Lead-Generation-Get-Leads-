@@ -6,7 +6,9 @@ Newest entries at the top. Keep each entry to a few lines.
 - Wrote `docs/OUTREACH_SYSTEM_PLAN.md`: audit, provider comparison, capacity math, costs, ramp plan, task ownership.
 - Audit surprises: Instantly is already paid (Hyper Growth $97/mo, renews 2026-10-24) and has the MAIN domain mailboxes as campaign senders; InboxKit has no plan or mailboxes yet; 11 of 12 lookalike domains connected; main domain restored to Squarespace after an accidental nameserver switch and removed from InboxKit.
 - Recommendation: InboxKit Google mailboxes (3 per lookalike domain) + Instantly (already paid) + GetLeads. Pilot ~$119/mo extra for ~400 new/day; full 1,000/day needs 30 domains, ~$316/mo extra.
-- Next: Ruben answers spend ceiling, cadence, address, Instantly keep/cancel; then AI executes purchases and setup on authorisation.
+- Ruben decided: cancel Instantly, use all 12 domains (36 mailboxes), target 400 new/day, expand to US later (318k US contacts available). Final stack: GetLeads + InboxKit Google mailboxes ($118.50) + Smartlead Pro (~$94) + Supabase/Railway. Net about +$116/mo after Instantly cancellation.
+- Sent delivery test emails to info@ and rubenochoa@ (main domain) after the DNS restore; rubenochoa@ received, info@ accepted with no bounce.
+- Next: Ruben confirms spend and cancels Instantly; AI buys InboxKit plan + 36 mailboxes and sets up Smartlead on authorisation.
 
 ## 2026-09-30 (cloud session, decision: no Instantly)
 - Ruben: Instantly is not being used, so do not connect it. The Instantly webhook token, the six existing Instantly webhooks and the old Railway app (`web-production-031d12`) are all left alone; nothing to repoint.

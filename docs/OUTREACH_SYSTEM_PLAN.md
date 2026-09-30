@@ -48,7 +48,35 @@ Recurring extras
 - Sending software: Instantly already paid. Smartlead Pro (~$94 list) or Saleshandy would be
   new spend for no gain.
 
-## 3. Recommendation
+## 3a. Decisions taken by Ruben on 2026-09-30
+
+- Instantly will be cancelled (renews 2026-10-24; cancel before then). It is no longer the sender.
+- Use all 12 lookalike domains, 3 mailboxes each = 36 mailboxes.
+- Target 400 new prospects/day (500 is the stretch). Expand from California to the whole US once the pilot holds.
+- US supply check (GetLeads, VALID email, target industries, decision-maker titles): 317,920 contacts.
+
+## 3b. Final simplified stack (no Instantly)
+
+| Layer | Tool | Monthly | Why |
+|---|---|---|---|
+| Leads | GetLeads (already paid) | $0 extra | 31k high-fit CA now, 318k US later |
+| Scoring, dedupe, tracking | This repo + Supabase (free tier) + Railway hobby | ~$0-5 | Already built |
+| Domains | 12 lookalikes on Spaceship (already paid) | $0 extra | 3 mailboxes each |
+| Mailboxes | InboxKit Agency: 30 Google slots $99 + 6 add-ons at $3.25 | $118.50 | Cheapest automated Google mailboxes (API price) |
+| Sending, warmup, reply detection, webhooks | Smartlead Pro (list ~$94 monthly, ~$78 annual; unverified from sandbox) | ~$94 | Unlimited mailboxes and warmup included, API + webhooks for the collector, native InboxKit export. Replaces Instantly ($97). |
+| **Net change vs today** | | **about +$116/mo** (gross new spend ~$213, minus the $97 Instantly cancellation) | |
+
+Cheaper sequencer candidates worth a 10-minute check before buying Smartlead (prices unverified):
+Saleshandy Outreach Pro (~$74 annual), PlusVibe (~$19-39), ReachInbox (~$39). All export from
+InboxKit. Pick Smartlead if unsure; it is the proven option at this volume.
+
+Rejected as more expensive: self-built sender on Railway ($0 software) because warmup would
+then cost $3/mailbox at InboxKit = $108/mo, more than Smartlead which includes it.
+
+Capacity at 36 mailboxes x 30/day = 1,080 sends/day = ~400 new + ~680 follow-ups (3-step).
+500 new/day needs ~37/mailbox/day: possible after week 6, labelled as stretch, not guaranteed.
+
+## 3. Recommendation (original comparison, kept for reference)
 
 Use InboxKit Google mailboxes on the lookalike domains, Instantly (already paid) as the
 sender, GetLeads for supply, Supabase/Railway for tracking. Do not buy a second sending tool.
