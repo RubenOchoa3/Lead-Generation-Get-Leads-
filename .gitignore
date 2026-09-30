@@ -1,3 +1,9 @@
 .DS_Store
 .env
 *.local
+
+# Lead data pulled from GetLeads contains third-party personal contact info; keep it out of git
+data/
+.env.*
+!.env.example
+__pycache__/
