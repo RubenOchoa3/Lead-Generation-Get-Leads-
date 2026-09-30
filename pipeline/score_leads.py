@@ -51,6 +51,19 @@ BUSINESS_TYPES = {
     "Healthcare admin / management office": (12, 7, True),
     "Home health agency (office only)": (6, 4, True),
     "Health services (unclear facility)": (10, 5, True),
+    # non-healthcare ICP types (pilot 2+)
+    "Office building / professional office": (18, 9, True),
+    "Property management / commercial real estate": (20, 10, True),
+    "Warehouse / logistics facility": (18, 9, True),
+    "Industrial / oilfield / plant facility": (18, 8, True),
+    "Manufacturing facility": (18, 9, True),
+    "School / education campus": (20, 9, True),
+    "Church / religious facility": (16, 8, True),
+    "Gym / fitness / recreation center": (18, 9, True),
+    "Retail center / auto dealership": (18, 9, True),
+    "Daycare / child care center": (18, 9, True),
+    "Coworking / shared office": (18, 9, True),
+    "Government / public facility": (14, 7, True),
     "Non-facility (telehealth / staffing / software / billing)": (3, 2, False),
     "Out of scope (insurer / nonprofit / foundation / retail)": (2, 1, False),
 }
@@ -60,7 +73,61 @@ def _has(blob, *words):
     return any(w in blob for w in words)
 
 
+HEALTH_INDUSTRIES = ("hospital", "health", "medical", "dentist", "physician", "mental", "outpatient",
+                     "chiropract", "optomet", "therap", "nursing", "laborator", "alternative medicine",
+                     "wellness and fitness services", "veterinary")
+
+
+def classify_icp(rec):
+    """Non-healthcare ICP types. Returns a label or None when the record looks like healthcare."""
+    name = (rec.get("Company Name") or "").lower()
+    ind = (rec.get("Company Industry (LinkedIn)") or "").lower()
+    naics = (rec.get("NAICS Industry Description") or "").lower()
+    spec = (rec.get("Company Specialties (LinkedIn)") or "").lower()
+    blob = " ".join([name, ind, naics, spec])
+    if _has(ind, *HEALTH_INDUSTRIES) and not _has(ind, "wellness and fitness"):
+        return None
+    if _has(name, "foundation", "endowment", "scholarship fund"):
+        return "Out of scope (insurer / nonprofit / foundation / retail)"
+    if _has(name, "computer", "technology", "software", "systems inc", "it solutions"):
+        return "Office building / professional office"
+    if _has(ind, "wellness and fitness", "recreational") or _has(name, "gym", "fitness", "athletic", "crossfit", "yoga"):
+        if _has(blob, "gym", "fitness", "recreation", "sports", "athletic", "yoga", "crossfit"):
+            return "Gym / fitness / recreation center"
+        return None
+    if _has(ind, "day care") or _has(name, "daycare", "day care", "preschool", "child care", "learning center"):
+        return "Daycare / child care center"
+    if _has(name, "coworking", "co-working", "shared office", "executive suites") or _has(blob, "coworking"):
+        return "Coworking / shared office"
+    if _has(ind, "religious") or _has(name, "church", "ministries", "chapel", "parish", "temple", "mosque"):
+        return "Church / religious facility"
+    if _has(ind, "education", "primary and secondary") or _has(name, "school", "academy", "unified", "college", "charter"):
+        return "School / education campus"
+    if _has(ind, "retail motor vehicles") or _has(name, "dealership", "motors", "auto group", "toyota", "ford", "chevrolet", "honda", "nissan"):
+        return "Retail center / auto dealership"
+    if _has(ind, "retail") or _has(name, "shopping center", "plaza", "mall", "marketplace"):
+        return "Retail center / auto dealership"
+    if _has(ind, "warehousing", "logistics", "truck transportation", "freight") or _has(name, "warehouse", "logistics", "distribution", "cold storage"):
+        return "Warehouse / logistics facility"
+    if _has(ind, "manufacturing", "fabricated metal", "food and beverage manufacturing", "machinery") or _has(name, "manufacturing", "mfg", "fabrication", "packing", "bottling"):
+        return "Manufacturing facility"
+    if _has(ind, "oil and gas", "oil; gas", "mining", "utilities", "environmental services", "renewable", "solar", "electric power", "farming", "agricultur") or _has(name, "oilfield", "energy", "petroleum", "drilling", "pipeline"):
+        return "Industrial / oilfield / plant facility"
+    if _has(ind, "real estate", "leasing") or _has(blob, "property management", "commercial real estate", "office park", "landlord"):
+        return "Property management / commercial real estate"
+    if _has(ind, "government", "public"):
+        return "Government / public facility"
+    if _has(ind, "law practice", "legal", "accounting", "insurance", "banking", "financial", "executive offices", "consulting", "engineering", "architecture", "staffing", "advertising", "marketing", "software", "it services"):
+        return "Office building / professional office"
+    if _has(ind, "construction"):
+        return "Office building / professional office"
+    return None
+
+
 def classify_business(rec):
+    icp = classify_icp(rec)
+    if icp:
+        return icp
     name = (rec.get("Company Name") or "").lower()
     ind = (rec.get("Company Industry (LinkedIn)") or "").lower()
     naics_all = (rec.get("NAICS Industry Description") or "").lower()
@@ -211,7 +278,10 @@ def title_tier(title):
     # 1) facilities-type buyers win even if the title also mentions something else
     if _w(r"facilit(y|ies)", t) or _w(r"building", t) or _w(r"property", t) or \
        _w(r"plant operations", t) or _w(r"environmental services", t) or _w(r"evs", t) or \
-       _w(r"maintenance (manager|director|supervisor)", t):
+       _w(r"maintenance (manager|director|supervisor)", t) or _w(r"(plant|warehouse) manager", t) or \
+       _w(r"operations and maintenance", t):
+        if _w(r"(assistant|asst|ass)", t):
+            return 5
         if not _w(r"(direct care staff|technician|coordinator)", t):
             return 1
     # 2) explicit non-buyer functions
@@ -231,7 +301,7 @@ def title_tier(title):
        _w(r"director of nursing", t) or _w(r"nursing director", t) or _w(r"center manager", t):
         return 3
     # 5) owner / executive
-    if _w(r"(owner|founder|co founder|president|ceo|chief executive officer|principal|managing partner|partner|managing director|medical director|dental director|chief)", t) \
+    if _w(r"(owner|founder|co founder|president|ceo|chief executive officer|principal|pastor|superintendent|managing partner|partner|managing director|medical director|dental director|chief)", t) \
        and not _w(r"vice president", t):
         return 4
     # 6) fallback managers and clinicians who may own the practice
@@ -394,8 +464,22 @@ def write_csv(path, leads, today):
             })
 
 
+def load_exclusions(folder):
+    """Company keys already delivered in earlier lists (data/*/leads_scored.csv)."""
+    keys = set()
+    for path in glob.glob(os.path.join(os.path.dirname(folder.rstrip("/")), "*", "leads_scored.csv")):
+        if os.path.abspath(os.path.dirname(path)) == os.path.abspath(folder):
+            continue
+        with open(path) as fh:
+            for row in csv.DictReader(fh):
+                dom = (row.get("Website") or "").lower().replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+                keys.add("dom:" + dom if dom else "name:" + norm(row.get("Company")))
+    return keys
+
+
 def main(folder, top_n):
     raw, pages = load_raw(folder)
+    already = load_exclusions(folder)
     total_rows = len(raw)
 
     # 1) contact-level dedupe (same person returned by several queries)
@@ -421,7 +505,8 @@ def main(folder, top_n):
             c["_rank"] = rank
             by_company[k] = c
     all_leads = sorted(by_company.values(), key=lambda c: -c["_s"]["score"])
-    pilot = [c for c in all_leads if c["_s"]["in_scope"]][:top_n]
+    dup_prior = [c for c in all_leads if company_key(c) in already]
+    pilot = [c for c in all_leads if c["_s"]["in_scope"] and company_key(c) not in already][:top_n]
     filtered_out = [c for c in all_leads if not c["_s"]["in_scope"]]
 
     today = date.today().isoformat()
@@ -430,7 +515,7 @@ def main(folder, top_n):
 
     scores = [c["_s"]["score"] for c in pilot]
     audit = {
-        "pilot": "Bakersfield, CA - medical, dental, clinics, healthcare facilities",
+        "pilot": os.path.basename(folder.rstrip("/")),
         "date": today,
         "source_pages": pages,
         "credits_used_search_rows": sum(p["credits"] for p in pages),
@@ -440,6 +525,7 @@ def main(folder, top_n):
         "unique_businesses": len(all_leads),
         "duplicate_rate_pct_rows_to_businesses": round(100.0 * (total_rows - len(all_leads)) / total_rows, 1),
         "businesses_filtered_out_of_scope": len(filtered_out),
+        "businesses_already_in_earlier_lists": len(dup_prior),
         "filtered_out_names": [c.get("Company Name") for c in filtered_out],
         "pilot_leads_delivered": len(pilot),
         "pilot_decision_makers_tier_1_4": sum(1 for c in pilot if c["_s"]["title_tier"] <= 4),
