@@ -7,7 +7,7 @@ Next.js 15 + TypeScript · Railway (web + PostgreSQL) · Getlead (leads) · Inbo
 Do NOT add Supabase, Clay, Apollo, Hunter, Instantly, Smartlead or any paid service without the owner's explicit OK.
 
 ## Current state (Oct 1, 2026)
-- Railway project `rs-lead-gen-os`: PostgreSQL provisioned (service `Postgres`, region ams). **Web app not deployed.**
+- Railway project `rs-lead-gen-os`: PostgreSQL provisioned (service `Postgres`, region ams). Web service `web` deployed 2026-10-01 → https://web-production-3079.up.railway.app (root dir `rs-lead-gen-os`).
   Two empty services `collector` and `reply-classifier` exist — unused; don't delete without asking.
 - This repo: schema `db/migrations/001_init.sql` (auto-applied by `npm start`), Getlead ingest (dedupe → classify → 100-pt score → queue),
   dashboard pages, lead drawer, approval queue, research API, InboxKit snapshot sync. Tests: `npm test` (DB tests need TEST_PSQL_ARGS).

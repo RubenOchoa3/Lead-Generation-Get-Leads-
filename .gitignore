@@ -1,3 +1,6 @@
 .DS_Store
 .env
 *.local
+
+# Contact data — never commit (repo is public)
+private/
