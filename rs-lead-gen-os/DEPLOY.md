@@ -30,7 +30,7 @@ Note: the project's region is Amsterdam (`ams`). The app and DB are co-located s
 4. Acceptance: import `pilot` rows → leads appear; import again → **no duplicates**; approve one → status persists; dashboard counts change.
 
 ## Build / start
-- Build: `npm run typecheck && npm test && npm run build` (from `railway.json`).
+- Build: `npm ci --include=dev && npm run typecheck && npm test && npm run build` (from `railway.json`).
 - Start: `npm start` → runs `scripts/migrate.mjs` (advisory-locked, idempotent) then `next start`.
 - Health check: `/api/health`.
 
