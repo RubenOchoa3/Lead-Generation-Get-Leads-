@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { sql } from "@/lib/db";
+import { instantlyConfigured } from "@/lib/providers/instantly";
 import { Bars, DbError, Empty, Funnel, Kpi, LineChart, Panel, ScorePill, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,9 @@ export default async function Dashboard() {
       <Head />
 
       {!senderConnected && (
-        <div className="notice info"><div><b>Outreach is not connected yet.</b>Sent, reply, meeting and revenue figures stay blank until a sender is connected and approved campaigns run. No numbers on this page are estimated.</div></div>
+        instantlyConfigured()
+          ? <div className="notice info"><div><b>Instantly is connected — no leads sent yet.</b>Add approved leads to a campaign on the <Link href="/campaigns">Campaigns</Link> page, then launch it yourself in Instantly once mailbox warmup is done. Sent, reply, meeting and revenue figures fill in after that. No numbers on this page are estimated.</div></div>
+          : <div className="notice info"><div><b>Outreach is not connected yet.</b>Sent, reply, meeting and revenue figures stay blank until a sender is connected and approved campaigns run. No numbers on this page are estimated.</div></div>
       )}
 
       <section className="kpis" aria-label="Key metrics">

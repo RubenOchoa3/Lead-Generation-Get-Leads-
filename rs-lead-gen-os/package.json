@@ -12,7 +12,7 @@
     "migrate": "node scripts/migrate.mjs",
     "push": "node scripts/push.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test --test-concurrency=1 tests/logic.test.ts tests/ingest.db.test.ts"
+    "test": "tsx --test --test-concurrency=1 tests/logic.test.ts tests/ingest.db.test.ts tests/outreach.db.test.ts"
   },
   "dependencies": {
     "next": "^15.5.0",

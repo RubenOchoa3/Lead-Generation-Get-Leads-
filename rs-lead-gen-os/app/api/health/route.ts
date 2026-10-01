@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { one } from "@/lib/db";
 import { getleadConfigured } from "@/lib/providers/getlead";
+import { instantlyConfigured } from "@/lib/providers/instantly";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function GET() {
       getlead_server_api: getleadConfigured() ? "configured" : "not_configured",
       claude_research_api: process.env.ANTHROPIC_API_KEY ? "configured" : "not_configured",
       inboxkit_server_api: process.env.INBOXKIT_API_KEY ? "configured" : "not_configured",
-      sender: "not_connected",
+      sender: instantlyConfigured() ? "instantly" : "not_connected",
     },
     time: new Date().toISOString(),
   };

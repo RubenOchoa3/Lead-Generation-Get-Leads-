@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db";
 import { DbError, Panel, StatusBadge } from "@/components/ui";
 import { getleadConfigured } from "@/lib/providers/getlead";
+import { instantlyConfigured } from "@/lib/providers/instantly";
 
 export const dynamic = "force-dynamic";
 const pct = (n: number, d: number) => (d ? `${((n / d) * 100).toFixed(1)}%` : "—");
@@ -26,7 +27,7 @@ export default async function Health() {
     ["Getlead (server API)", getleadConfigured() ? "Configured" : "Not configured", getleadConfigured() ? "live search enabled" : "imports via Claude MCP / CSV"],
     ["Claude research (server API)", process.env.ANTHROPIC_API_KEY ? "Configured" : "Not configured", process.env.ANTHROPIC_API_KEY ? "" : "research added from Claude sessions"],
     ["InboxKit sync", process.env.INBOXKIT_API_KEY ? "Configured" : "Not configured", "snapshots pushed from Claude's InboxKit MCP"],
-    ["Sender / campaign sync", "Not connected", "awaiting sender decision"],
+    ["Sender (Instantly)", instantlyConfigured() ? "Configured" : "Not connected", instantlyConfigured() ? "add approved leads on Campaigns; launching stays manual in Instantly" : "set INSTANTLY_API_KEY in Railway"],
     ["Workers / scheduled jobs", "Not configured", "daily engine disabled until pilot reviewed"],
     ["Auth", process.env.APP_PASSWORD ? "Healthy" : "Warning", process.env.APP_PASSWORD ? "Basic auth on" : "APP_PASSWORD missing"],
   ];
