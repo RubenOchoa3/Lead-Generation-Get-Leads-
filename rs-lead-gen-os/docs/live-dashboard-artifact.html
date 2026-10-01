@@ -1,0 +1,908 @@
+<title>R&amp;S Lead OS</title>
+<style>
+/* Layout: app shell — dark brand rail + operational content; summary → queue → detail */
+:root {
+  --ink: #0d0e10; --ink-2: #2a2c31; --bg: #f4f4f1; --surface: #ffffff; --surface-2: #f9f9f7;
+  --line: #e3e3de; --line-2: #d2d2cc; --muted: #5f6268; --faint: #8a8c91;
+  --rail: #0d0e10; --rail-fg: #c9cbd0; --rail-active-bg: #ffffff; --rail-active-fg: #0d0e10;
+  --ok: #1b6b52; --ok-soft: #e4f1eb; --warn: #8f5500; --warn-soft: #fbf0dc; --bad: #a3261c; --bad-soft: #fbe8e5;
+  --info: #1d4f91; --info-soft: #e6edf8; --prio-bg: #0d0e10; --prio-fg: #ffffff;
+  --font-ui: "IBM Plex Sans", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ink: #ecedef; --ink-2: #c7c9ce; --bg: #111214; --surface: #18191c; --surface-2: #1d1f22;
+  --line: #2a2c30; --line-2: #3a3c41; --muted: #a2a5ab; --faint: #7d8086;
+  --rail: #0a0b0c; --rail-fg: #b8bbc1; --rail-active-bg: #ecedef; --rail-active-fg: #0d0e10;
+  --ok: #5fc39e; --ok-soft: #173229; --warn: #e2a64a; --warn-soft: #33270f; --bad: #f0857a; --bad-soft: #3a1b18;
+  --info: #8db4ec; --info-soft: #172438; --prio-bg: #ecedef; --prio-fg: #0d0e10; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --ink: #ecedef; --ink-2: #c7c9ce; --bg: #111214; --surface: #18191c; --surface-2: #1d1f22;
+  --line: #2a2c30; --line-2: #3a3c41; --muted: #a2a5ab; --faint: #7d8086;
+  --rail: #0a0b0c; --rail-fg: #b8bbc1; --rail-active-bg: #ecedef; --rail-active-fg: #0d0e10;
+  --ok: #5fc39e; --ok-soft: #173229; --warn: #e2a64a; --warn-soft: #33270f; --bad: #f0857a; --bad-soft: #3a1b18;
+  --info: #8db4ec; --info-soft: #172438; --prio-bg: #ecedef; --prio-fg: #0d0e10; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-ui); margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+h2 { font-size: 14.5px; margin: 0; }
+.muted { color: var(--muted); } .faint { color: var(--faint); } .small { font-size: 12px; }
+
+.shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
+.rail { background: var(--rail); color: var(--rail-fg); padding: 18px 12px; position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto; }
+.brand { display: flex; gap: 10px; align-items: center; padding: 2px 6px 18px; color: #fff; }
+.mark { width: 34px; height: 34px; border-radius: 8px; background: #fff; color: #0d0e10; display: grid; place-items: center; font-weight: 700; font-size: 11.5px; flex: none; }
+.brand b { display: block; font-size: 14px; } .brand span { font-size: 11px; color: #8d9097; }
+.rail h3 { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #74777e; margin: 16px 8px 6px; font-weight: 600; }
+.tab { display: flex; justify-content: space-between; align-items: center; width: 100%; background: none; border: 0; padding: 8px; border-radius: 7px; color: var(--rail-fg); text-align: left; cursor: pointer; font-size: 13.5px; }
+.tab:hover { background: #1d1f23; color: #fff; }
+.tab[aria-selected="true"] { background: var(--rail-active-bg); color: var(--rail-active-fg); font-weight: 600; }
+.count { font-size: 11px; background: #2a2c31; color: #fff; border-radius: 999px; padding: 1px 7px; font-family: var(--font-num); }
+.tab[aria-selected="true"] .count { background: #0d0e10; }
+.rail .soon { font-size: 12.5px; color: #6f7279; padding: 6px 8px; }
+
+.main { min-width: 0; }
+.top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 24px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
+.top input[type=search] { flex: 1; min-width: 180px; max-width: 420px; }
+.chips-top { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.content { padding: 22px 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.head p { margin: 4px 0 0; }
+
+input, select { background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; min-height: 36px; }
+:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.btn:hover { border-color: var(--faint); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.approve { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.btn.dark { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.btn.danger { color: var(--bad); }
+.btn.sm { min-height: 30px; padding: 0 10px; font-size: 12.5px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px 0; }
+.panel-h p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.panel-b { padding: 14px 16px 16px; }
+.grid { display: grid; gap: 14px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gm { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; min-height: 84px; }
+button.kpi { text-align: left; cursor: pointer; } button.kpi:hover { border-color: var(--line-2); }
+.kpi .l { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.kpi .v { font-size: 24px; font-weight: 600; letter-spacing: -.02em; font-family: var(--font-num); }
+.kpi .s { font-size: 11.5px; color: var(--faint); }
+.kpi.na .v { font-size: 14px; color: var(--faint); font-family: var(--font-ui); padding-top: 6px; }
+
+.notice { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--info-soft); color: var(--ink-2); font-size: 13px; }
+.notice b { display: block; color: var(--ink); }
+.notice.warn { background: var(--warn-soft); }
+
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap; }
+.badge.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.badge.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.badge.info { background: var(--info-soft); color: var(--info); border-color: transparent; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--faint); }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.score { display: inline-grid; place-items: center; min-width: 34px; height: 24px; padding: 0 7px; border-radius: 6px; font: 600 12px var(--font-num); border: 1px solid var(--line); }
+.score.p { background: var(--prio-bg); color: var(--prio-fg); border-color: var(--prio-bg); }
+.score.g { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.score.r { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+
+.bars { display: flex; flex-direction: column; gap: 9px; }
+.bar { display: grid; grid-template-columns: minmax(80px, 1.2fr) 2fr 36px; gap: 10px; align-items: center; font-size: 12.5px; }
+.bar > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { height: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; background: var(--ink); }
+.bar b { text-align: right; font-family: var(--font-num); font-weight: 500; }
+.funnel { display: flex; flex-direction: column; gap: 6px; }
+.frow { display: grid; grid-template-columns: 84px 1fr 64px; gap: 10px; align-items: center; font-size: 12.5px; }
+.fbar { height: 20px; background: var(--ink); border-radius: 4px; min-width: 3px; }
+.frow.out .fbar { background: var(--line-2); }
+.frow b { text-align: right; font-family: var(--font-num); font-weight: 500; }
+
+.list { display: flex; flex-direction: column; }
+.lrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.lrow:last-child { border-bottom: 0; }
+.lrow button.link { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+.main-t { font-weight: 600; } .sub-t { font-size: 12px; color: var(--muted); }
+button.link:hover .main-t { text-decoration: underline; }
+.kv { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 6px 12px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+.empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.toolbar .sp { flex: 1; }
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 600; padding: 8px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr:hover td { background: var(--surface-2); }
+
+.qcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.qcard:last-child { border-bottom: 0; }
+.qcard.focus { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--info); }
+.qmeta { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.qmeta b { color: var(--ink); font-weight: 600; }
+.qnote { font-size: 12.5px; margin-top: 6px; color: var(--ink-2); }
+.qact { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
+.kbd { font: 11px var(--font-num); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--muted); }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.scrim { position: fixed; inset: 0; background: rgba(13,14,16,.35); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(540px, 100vw); background: var(--surface); z-index: 21; display: flex; flex-direction: column; border-left: 1px solid var(--line); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.dh { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+.db { flex: 1; overflow-y: auto; padding: 0 18px 18px; }
+.ds { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.ds h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.da { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; background: var(--surface-2); }
+.sbreak { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.sbreak div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.sbreak span { display: block; font-size: 11px; color: var(--muted); }
+.sbreak b { font-family: var(--font-num); font-weight: 600; }
+.split { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+.fsec { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.fsec:last-child { border-bottom: 0; }
+.fsec h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
+.fsec label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.fsec label.col { flex-direction: column; align-items: stretch; gap: 4px; font-size: 12px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 4px 9px; font-size: 12px; cursor: pointer; min-height: 28px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.stages { display: flex; overflow-x: auto; }
+.stage { flex: 1; min-width: 96px; padding: 10px 8px; border-top: 3px solid var(--line); font-size: 11.5px; color: var(--faint); }
+.stage.done { border-color: var(--ok); color: var(--ink-2); }
+.stage.cur { border-color: var(--info); color: var(--info); font-weight: 600; }
+.sgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.sgrid div { background: var(--surface); padding: 10px 12px; }
+.sgrid b { display: block; font: 600 18px var(--font-num); }
+.sgrid span { font-size: 11.5px; color: var(--muted); }
+.runlog { font: 12px var(--font-num); color: var(--muted); max-height: 160px; overflow-y: auto; padding: 0 16px 14px; margin: 0; list-style: none; }
+@media (max-width: 980px) { .split { grid-template-columns: minmax(0, 1fr); } .sgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.attn { display: flex; flex-direction: column; }
+.attn-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
+.attn-row:first-child { border-top: 0; }
+.sev { width: 10px; height: 10px; border-radius: 50%; }
+.sev.block { background: var(--bad); } .sev.warn { background: var(--warn); } .sev.info { background: var(--info); }
+.attn-row .t { font-weight: 600; } .attn-row .d { font-size: 12.5px; color: var(--muted); }
+.ext { font-size: 11px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 999px; padding: 1px 7px; margin-left: 6px; white-space: nowrap; }
+.e2e { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+.e2e-step { padding: 10px 12px; border-top: 3px solid var(--line); font-size: 12.5px; }
+.e2e-step b { display: block; font-size: 13px; }
+.e2e-step span { color: var(--muted); font-size: 11.5px; }
+.e2e-step.ok { border-color: var(--ok); } .e2e-step.ok b::before { content: "✓ "; color: var(--ok); }
+.e2e-step.bad { border-color: var(--bad); background: var(--bad-soft); } .e2e-step.bad b::before { content: "✕ "; color: var(--bad); }
+.e2e-step.todo b::before { content: "○ "; color: var(--warn); } .e2e-step.todo { border-color: var(--warn); }
+.e2e-step.na b::before { content: "— "; color: var(--faint); } .e2e-step.na b { color: var(--faint); }
+.issue { padding: 14px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.issue:first-child { border-top: 0; }
+.issue h3 { font-size: 14px; margin: 0 0 4px; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.issue p { margin: 2px 0; font-size: 13px; color: var(--ink-2); }
+.issue .lbl { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-right: 6px; }
+.steps { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+.steps li { margin-bottom: 3px; }
+.protect { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--prio-bg); color: var(--prio-fg); white-space: nowrap; }
+.modal { position: fixed; inset: 0; display: grid; place-items: center; z-index: 40; background: rgba(13,14,16,.4); padding: 16px; }
+.modal-box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; max-width: 440px; width: 100%; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.modal-box h2 { font-size: 16px; } .modal-box p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.timeline li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
+.timeline li .k { color: var(--muted); }
+.timeline li.done .k::before { content: "✓ "; color: var(--ok); }
+.timeline li.pend .k::before { content: "○ "; color: var(--faint); }
+@media (max-width: 980px) { .e2e { grid-template-columns: repeat(2, minmax(0, 1fr)); } .issue { grid-template-columns: minmax(0, 1fr); } }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 30; }
+
+.mnav { display: none; }
+@media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 980px) { .gm, .g3 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 780px) {
+  .shell { grid-template-columns: minmax(0, 1fr); } .rail { display: none; }
+  .mnav { display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px; background: var(--rail); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; }
+  .mnav .tab { width: auto; white-space: nowrap; }
+  .top { padding: 8px 16px; top: calc(48px + env(safe-area-inset-top, 0px)); } .chips-top { display: none; }
+  .content { padding: 16px 16px 40px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g2 { grid-template-columns: minmax(0, 1fr); }
+  .qcard { grid-template-columns: minmax(0, 1fr); } .qact { justify-content: stretch; } .qact .btn { flex: 1; min-height: 44px; }
+  .sbreak { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: no-preference) { .drawer { animation: slide .18s ease-out; } @keyframes slide { from { transform: translateX(24px); opacity: .6; } } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<nav class="mnav" id="mnav" aria-label="Sections"></nav>
+<div class="shell">
+  <aside class="rail" aria-label="Sections">
+    <div class="brand"><div class="mark" aria-hidden="true">R&amp;S</div><div><b>R&amp;S Lead OS</b><span>Central Valley Cleaning</span></div></div>
+    <div id="nav"></div>
+    <h3>Coming online</h3>
+    <div class="soon">Campaigns · Replies — waiting on sender</div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <input type="search" id="q" placeholder="Search companies, contacts, emails…" aria-label="Search leads">
+      <div class="chips-top" id="status"></div>
+    </header>
+    <main class="content" id="view" aria-live="polite"></main>
+  </div>
+</div>
+<div id="drawer-root"></div>
+<div id="toast-root"></div>
+<div id="modal-root"></div>
+
+<script>
+(() => {
+  const TABS = [["overview", "Dashboard"], ["find", "Find Leads"], ["queue", "Approval Queue"], ["leads", "Leads"], ["infra", "Mailboxes & Domains"], ["activity", "Runs & Sync"]];
+  const S = { system: null, researching: null, confirm: null, showDns: false, tab: "overview", q: "", leads: [], domains: null, mailboxes: null, meta: null, outreach: null, loaded: false, error: null, canEdit: false, open: null, qStatus: "Needs Review", qFocus: 0, typeF: "", bandF: "", apprF: "" };
+  try { const t = localStorage.getItem("rs-tab"); if (t && TABS.some(x => x[0] === t)) S.tab = t; } catch (e) {}
+  if (location.hash && TABS.some(x => x[0] === location.hash.slice(1))) S.tab = location.hash.slice(1);
+  let db = null, mcp = null, sample = null;
+
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmtD = d => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
+  const fmtDT = d => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+  const pct = (n, d) => d ? Math.round(n / d * 100) + "%" : "—";
+  const scoreCls = s => s >= 80 ? "p" : s >= 65 ? "g" : s >= 50 ? "r" : "";
+  const score = s => `<span class="score ${scoreCls(s)}" title="${s >= 80 ? "Priority" : s >= 65 ? "Good" : s >= 50 ? "Review" : "Hold"}">${s ?? 0}</span>`;
+  const tone = v => /approved|healthy|valid|active|complete|propagated/i.test(v || "") ? "ok" : /reject|suppress|fail|invalid|issue|deletion/i.test(v || "") ? "bad" : /review|pending|research|catch|unknown|not started|not connected/i.test(v || "") ? "warn" : "";
+  const badge = v => `<span class="badge ${tone(v)}">${esc(v || "—")}</span>`;
+  const toast = msg => { const r = document.getElementById("toast-root"); r.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`; clearTimeout(toast.t); toast.t = setTimeout(() => r.innerHTML = "", 2200); };
+
+  function navHtml() {
+    const review = S.leads.filter(l => l.approval === "Needs Review").length;
+    return TABS.map(([k, l]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span>${l}</span>${k === "queue" && review ? `<span class="count">${review}</span>` : ""}</button>`).join("");
+  }
+  function statusHtml() {
+    if (S.error) return `<span class="badge bad"><span class="dot bad"></span>Live data unavailable</span>`;
+    if (!S.loaded) return `<span class="badge">Connecting…</span>`;
+    const m = S.meta || {};
+    return `<span class="badge"><span class="dot ok"></span>Live${m.updatedAt ? " · synced " + esc(fmtDT(m.updatedAt)) : ""}</span><span class="badge warn">Outreach: approval required</span>`;
+  }
+
+  function filtered() {
+    const q = S.q.trim().toLowerCase();
+    return S.leads.filter(l => {
+      if (q && ![l.company, l.city, l.type, l.domain, l.contact?.name, l.contact?.email, l.contact?.title].some(v => (v || "").toLowerCase().includes(q))) return false;
+      if (S.typeF && l.type !== S.typeF) return false;
+      if (S.bandF && l.band !== S.bandF) return false;
+      if (S.apprF && l.approval !== S.apprF) return false;
+      return true;
+    }).sort((a, b) => (b.score || 0) - (a.score || 0));
+  }
+  const groupBy = (arr, f) => { const m = new Map(); arr.forEach(x => { const k = f(x) || "Unknown"; m.set(k, (m.get(k) || 0) + 1); }); return [...m].sort((a, b) => b[1] - a[1]); };
+  const bars = items => items.length ? `<div class="bars">${items.map(([l, v]) => { const max = items[0][1] || 1; return `<div class="bar"><span title="${esc(l)}">${esc(l)}</span><div class="track"><div class="fill" style="width:${Math.max(3, v / max * 100)}%"></div></div><b>${v}</b></div>`; }).join("")}</div>` : `<div class="empty"><b>No data yet</b></div>`;
+
+  function overview() {
+    const L = S.leads, total = L.length;
+    const qualified = L.filter(l => l.score >= 65).length;
+    const verified = L.filter(l => l.contact?.emailStatus === "VALID").length;
+    const review = L.filter(l => l.approval === "Needs Review").length;
+    const approved = L.filter(l => l.approval === "Approved").length;
+    const rejected = L.filter(l => l.approval === "Rejected").length;
+    const o = S.outreach; const sender = !!(o && o.connected);
+    const n = k => sender ? (o[k] ?? 0).toLocaleString() : "—";
+    const mb = S.mailboxes?.items || [], dm = (S.domains?.items || []).filter(d => !d.primary);
+    const connected = mb.filter(m => m.sender).length;
+    const queuePrev = L.filter(l => l.approval === "Needs Review").sort((a, b) => b.score - a.score).slice(0, 6);
+    const funnel = [["Found", total], ["Qualified", qualified], ["Verified", verified], ["Approved", approved], ["Contacted", sender ? o.contacted || 0 : 0, 1], ["Replied", sender ? o.replies || 0 : 0, 1], ["Meeting", sender ? o.meetings || 0 : 0, 1], ["Customer", sender ? o.closed || 0 : 0, 1]];
+    const fmax = Math.max(1, total);
+    return `
+      <div class="head"><div><h1>Dashboard</h1><p class="muted">Live from the R&amp;S lead database. Claude keeps it synced; your approvals save instantly.</p></div>
+        <div class="seg"><button class="btn dark" data-go="queue">Review leads (${review})</button><button class="btn" data-go="leads">All leads</button></div></div>
+      ${attentionPanel()}
+      ${e2ePanel()}
+      <section class="kpis" aria-label="Key numbers">
+        <button class="kpi" data-go="leads"><span class="l">Total leads</span><span class="v">${total}</span><span class="s">${new Set(L.map(l => l.city)).size} cit${new Set(L.map(l => l.city)).size === 1 ? "y" : "ies"}</span></button>
+        <button class="kpi" data-go="leads" data-band="Good+"><span class="l">Qualified (65+)</span><span class="v">${qualified}</span><span class="s">${pct(qualified, total)} of leads</span></button>
+        <button class="kpi" data-go="leads"><span class="l">Verified decision makers</span><span class="v">${verified}</span><span class="s">${pct(verified, total)} of companies</span></button>
+        <button class="kpi" data-go="queue"><span class="l">Needs approval</span><span class="v">${review}</span><span class="s">morning review</span></button>
+        <button class="kpi" data-go="queue" data-qstatus="Approved"><span class="l">Approved</span><span class="v">${approved}</span><span class="s">${rejected} rejected</span></button>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Emails sent today</span><span class="v">${sender ? n("sentToday") : "Not connected"}</span></div>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Replies</span><span class="v">${n("replies")}</span></div>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Positive replies</span><span class="v">${n("positive")}</span></div>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Positive reply rate</span><span class="v">${sender ? pct(o.positive || 0, o.contacted || 0) : "—"}</span></div>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Meetings booked</span><span class="v">${n("meetings")}</span></div>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Closed clients</span><span class="v">${n("closed")}</span></div>
+        <div class="kpi ${sender ? "" : "na"}"><span class="l">Revenue</span><span class="v">${sender ? "$" + (o.revenue || 0).toLocaleString() : "—"}</span></div>
+      </section>
+      <div class="grid gm">
+        <section class="panel"><div class="panel-h"><div><h2>Morning approval queue</h2><p>Highest scores first</p></div><button class="btn sm" data-go="queue">Review all</button></div>
+          <div class="panel-b">${queuePrev.length ? `<div class="list">${queuePrev.map(l => `<div class="lrow"><button class="link" data-open="${esc(l.id)}"><div class="main-t">${esc(l.company)}</div><div class="sub-t">${esc([l.contact?.name, l.contact?.title].filter(Boolean).join(" · ") || "No contact")} · ${esc(l.city)} · ${esc(l.type)}</div></button>${score(l.score)}</div>`).join("")}</div>` : `<div class="empty"><b>Queue is clear</b>New qualified leads land here after each Getlead run.</div>`}</div></section>
+        <section class="panel"><div class="panel-h"><div><h2>Lead funnel</h2><p>Counted from the database</p></div></div>
+          <div class="panel-b"><div class="funnel">${funnel.map(([l, v, out], i) => `<div class="frow ${out && !sender ? "out" : ""}"><span>${l}</span><div><div class="fbar" style="width:${Math.max(.6, v / fmax * 100)}%"></div></div><b>${v}${i > 0 && funnel[i - 1][1] ? ` <span class="faint small">${pct(v, funnel[i - 1][1])}</span>` : ""}</b></div>`).join("")}</div></div></section>
+      </div>
+      <div class="grid g3">
+        <section class="panel"><div class="panel-h"><h2>Leads by business type</h2></div><div class="panel-b">${bars(groupBy(L, l => l.type).slice(0, 8))}</div></section>
+        <section class="panel"><div class="panel-h"><div><h2>Score bands</h2><p>Priority 80+ · Good 65–79 · Review 50–64 · Hold &lt;50</p></div></div><div class="panel-b">${bars(["Priority", "Good", "Review", "Hold"].map(b => [b, L.filter(l => l.band === b).length]).filter(x => x[1]))}</div></section>
+        <section class="panel"><div class="panel-h"><div><h2>Sending infrastructure</h2><p>${S.mailboxes?.syncedAt ? "InboxKit · synced " + esc(fmtDT(S.mailboxes.syncedAt)) : "Not synced yet"}</p></div><button class="btn sm" data-go="infra">Details</button></div>
+          <div class="panel-b"><dl class="kv"><dt>Sending domains</dt><dd><b class="num">${dm.length}</b> · ${dm.filter(d => d.health === "Healthy").length} DNS-healthy</dd>
+          <dt>Mailboxes</dt><dd><b class="num">${mb.length}</b> · ${connected} connected to a sender</dd>
+          <dt>Warmup</dt><dd>${connected ? "See details" : badge("Not started")}</dd>
+          <dt>Send capacity</dt><dd>${connected ? "See details" : "0 / day — no mailbox can send yet"}</dd></dl></div></section>
+      </div>`;
+  }
+
+  function queue() {
+    const items = S.leads.filter(l => l.approval === S.qStatus).sort((a, b) => b.score - a.score);
+    S.qFocus = Math.min(S.qFocus, Math.max(0, items.length - 1));
+    const counts = st => S.leads.filter(l => l.approval === st).length;
+    return `
+      <div class="head"><div><h1>Approval queue</h1><p class="muted">One decision per lead. Nothing is emailed without your approval. Keys: <span class="kbd">J</span>/<span class="kbd">K</span> move · <span class="kbd">A</span> approve · <span class="kbd">R</span> reject · <span class="kbd">O</span> open</p></div></div>
+      <div class="seg" role="group" aria-label="Queue status">${["Needs Review", "Approved", "Rejected", "Suppressed"].map(s => `<button data-qstatus="${s}" aria-pressed="${S.qStatus === s}">${s} · ${counts(s)}</button>`).join("")}</div>
+      ${!S.canEdit ? `<div class="notice warn"><div><b>View only</b>You can see the queue but not change it.</div></div>` : ""}
+      <section class="panel">${items.length ? items.map((l, i) => `
+        <article class="qcard ${i === S.qFocus ? "focus" : ""}" data-idx="${i}">
+          <div style="min-width:0">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${score(l.score)}<button class="link" style="background:none;border:0;padding:0;cursor:pointer" data-open="${esc(l.id)}"><span class="main-t" style="font-size:14.5px">${esc(l.company)}</span></button><span class="badge">${esc(l.type)}</span></div>
+            <div class="qmeta"><span>${esc(l.city)}</span><span><b>${esc(l.contact?.name || "No contact")}</b>${l.contact?.title ? " · " + esc(l.contact.title) : ""}</span><span>${esc(l.contact?.email || "no email")} ${l.contact?.email ? badge(l.contact.emailStatus) : ""}</span>${l.contact?.phone || l.phone ? `<span class="num">${esc(l.contact?.phone || l.phone)}</span>` : ""}<span>${esc(l.employees || "")}</span></div>
+            ${l.why ? `<div class="qnote"><span class="faint">Why selected:</span> ${esc(l.why)}</div>` : ""}
+            ${l.research ? `<div class="qnote"><span class="faint">Claude (${l.research.confidence ?? "—"}% confidence):</span> ${esc(l.research.personalization_note || "")} <span class="faint">Angle:</span> ${esc(l.research.outreach_angle || "")}</div>` : `<div class="qnote faint small">No Claude research yet.</div>`}
+          </div>
+          <div class="qact">
+            ${S.qStatus !== "Approved" ? `<button class="btn sm approve" data-decide="Approved" data-id="${esc(l.id)}" ${S.canEdit ? "" : "disabled"}>Approve</button>` : ""}
+            ${S.qStatus !== "Rejected" ? `<button class="btn sm" data-decide="Rejected" data-id="${esc(l.id)}" ${S.canEdit ? "" : "disabled"}>Reject</button>` : ""}
+            <button class="btn sm" data-research="${esc(l.id)}" ${S.canEdit && S.researching !== l.id ? "" : "disabled"}>${S.researching === l.id ? "Researching…" : l.research ? "Research again" : "Research with Claude"}</button>
+            <button class="btn sm" data-open="${esc(l.id)}">Open</button>
+            ${S.qStatus !== "Needs Review" ? `<button class="btn sm" data-decide="Needs Review" data-id="${esc(l.id)}" ${S.canEdit ? "" : "disabled"}>Back to review</button>` : `<button class="btn sm danger" data-suppress="${esc(l.id)}" ${S.canEdit ? "" : "disabled"}>Suppress</button>`}
+          </div>
+        </article>`).join("") : `<div class="empty"><b>${S.qStatus === "Needs Review" ? "Queue is clear" : "Nothing here yet"}</b>${S.qStatus === "Needs Review" ? "Qualified leads from the next Getlead run will appear here." : ""}</div>`}</section>`;
+  }
+
+  function leads() {
+    const rows = filtered();
+    const types = [...new Set(S.leads.map(l => l.type))].sort();
+    return `
+      <div class="head"><div><h1>Leads</h1><p class="muted">${rows.length} of ${S.leads.length} companies · click a company to open details</p></div></div>
+      <section class="panel">
+        <div class="toolbar">
+          <select id="typeF" aria-label="Business type"><option value="">All business types</option>${types.map(t => `<option ${S.typeF === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>
+          <select id="bandF" aria-label="Score band"><option value="">All scores</option>${["Priority", "Good", "Review", "Hold"].map(b => `<option ${S.bandF === b ? "selected" : ""}>${b}</option>`).join("")}</select>
+          <select id="apprF" aria-label="Approval"><option value="">Any approval</option>${["Needs Review", "Approved", "Rejected", "Suppressed", "Not queued"].map(b => `<option ${S.apprF === b ? "selected" : ""}>${b}</option>`).join("")}</select>
+          <span class="sp"></span>${S.typeF || S.bandF || S.apprF || S.q ? `<button class="btn sm" id="clearF">Clear filters</button>` : ""}
+        </div>
+        ${rows.length ? `<div class="tw"><table><thead><tr><th>Company</th><th>Type</th><th>City</th><th>Decision maker</th><th>Email</th><th>Phone</th><th>Score</th><th>Approval</th><th>Found</th></tr></thead><tbody>
+          ${rows.map(l => `<tr><td><button class="link" style="background:none;border:0;padding:0;cursor:pointer;text-align:left" data-open="${esc(l.id)}"><div class="main-t">${esc(l.company)}</div><div class="sub-t">${esc(l.domain || "")}</div></button></td>
+            <td>${esc(l.type)}</td><td>${esc(l.city)}</td><td>${l.contact?.name ? `${esc(l.contact.name)}<div class="sub-t">${esc(l.contact.title)}</div>` : `<span class="faint">None found</span>`}</td>
+            <td>${l.contact?.email ? `${esc(l.contact.email)} ${badge(l.contact.emailStatus)}` : `<span class="faint">—</span>`}</td><td class="num">${esc(l.contact?.phone || l.phone || "—")}</td>
+            <td>${score(l.score)}</td><td>${badge(l.approval)}</td><td class="num">${fmtD(l.foundAt)}</td></tr>`).join("")}
+        </tbody></table></div>` : `<div class="empty"><b>No leads match</b>Try clearing the filters.</div>`}
+      </section>`;
+  }
+
+  function infra() {
+    const doms = S.domains?.items || [], mbs = S.mailboxes?.items || [];
+    const sending = doms.filter(d => !d.primary);
+    const ok = v => v === true ? `<span class="badge ok">Pass</span>` : v === false ? `<span class="badge warn">Missing</span>` : `<span class="faint">—</span>`;
+    return `
+      <div class="head"><div><h1>Mailboxes &amp; domains</h1><p class="muted">InboxKit sending infrastructure${S.domains?.syncedAt ? " · synced " + esc(fmtDT(S.domains.syncedAt)) : ""}. Passwords are never stored here.</p></div></div>
+      ${infraActionCards()}
+      <section class="kpis">
+        <div class="kpi"><span class="l">Sending domains</span><span class="v">${sending.length}</span></div>
+        <div class="kpi"><span class="l">DNS healthy</span><span class="v">${sending.filter(d => d.health === "Healthy").length}</span><span class="s">SPF + DKIM + DMARC</span></div>
+        <div class="kpi"><span class="l">Pending DNS</span><span class="v">${sending.filter(d => d.health === "Pending").length}</span></div>
+        <div class="kpi"><span class="l">Mailboxes</span><span class="v">${mbs.length}</span></div>
+        <div class="kpi"><span class="l">Connected to sender</span><span class="v">${mbs.filter(m => m.sender).length}</span></div>
+        <div class="kpi"><span class="l">Daily capacity</span><span class="v">${mbs.some(m => m.sender) ? "—" : 0}</span></div>
+      </section>
+      <section class="panel"><div class="panel-h"><h2>Domains</h2></div><div class="panel-b" style="padding:12px 0 0">${doms.length ? `<div class="tw"><table><thead><tr><th>Domain</th><th>Status</th><th>DNS</th><th>SPF</th><th>DKIM</th><th>DMARC</th><th>Mailboxes</th><th>Health</th></tr></thead><tbody>
+        ${doms.map(d => `<tr><td class="main-t">${esc(d.domain)}${d.primary ? ` <span class="protect">Primary Business Domain — Protected</span>` : ""}</td><td>${d.primary && /delet|remov/i.test(d.status || "") ? `<span class="badge warn">Removal from InboxKit only</span>` : badge(d.status)}</td><td>${badge(d.dns)}</td><td>${ok(d.spf)}</td><td>${ok(d.dkim)}</td><td>${ok(d.dmarc)}</td><td class="num">${d.mailboxes ?? 0}</td><td>${d.primary ? `<span class="badge">Protected</span>` : badge(d.health)}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty"><b>No domains synced</b></div>`}</div></section>
+      <section class="panel"><div class="panel-h"><h2>Mailboxes</h2></div><div class="panel-b" style="padding:12px 0 0">${mbs.length ? `<div class="tw"><table><thead><tr><th>Mailbox</th><th>Provider</th><th>Status</th><th>Warmup</th><th>Sender</th><th>Daily limit</th><th>Sent today</th></tr></thead><tbody>
+        ${mbs.map(m => `<tr><td class="main-t">${esc(m.address)}</td><td>${esc(m.platform)}</td><td>${badge(m.status)}</td><td>${badge(m.warmup || "Not started")}</td><td>${m.sender ? esc(m.sender) : `<span class="faint">Not connected</span>`}</td><td class="num">${m.limit ?? "—"}</td><td class="num">${m.sentToday ?? "—"}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty"><b>No mailboxes synced</b></div>`}</div></section>`;
+  }
+
+  /* ───────── Shared helpers for attention, infrastructure, research ───────── */
+  const PRIMARY_DOMAIN = "rscentralvalleycleaning.com";
+  const COUNTY = { bakersfield: "Kern", delano: "Kern", shafter: "Kern", wasco: "Kern", arvin: "Kern", tehachapi: "Kern", ridgecrest: "Kern", "mcfarland": "Kern", "oildale": "Kern",
+    fresno: "Fresno", clovis: "Fresno", sanger: "Fresno", reedley: "Fresno", selma: "Fresno", visalia: "Tulare", tulare: "Tulare", porterville: "Tulare", dinuba: "Tulare",
+    hanford: "Kings", lemoore: "Kings", madera: "Madera", merced: "Merced", modesto: "Stanislaus", turlock: "Stanislaus", stockton: "San Joaquin" };
+  const countyOf = city => COUNTY[(city || "").trim().toLowerCase()] || null;
+  const isPrimaryDomain = d => (d || "").toLowerCase() === PRIMARY_DOMAIN;
+  const senderMailboxes = () => (S.mailboxes?.items || []).filter(m => !isPrimaryDomain((m.address || "").split("@")[1])); // never rotate the primary domain
+
+  function infraIssues() {
+    const doms = S.domains?.items || [], mbs = senderMailboxes();
+    const pendingNoMb = doms.filter(d => !isPrimaryDomain(d.domain) && d.health !== "Healthy" && !(d.mailboxes > 0));
+    const pendingWithMb = doms.filter(d => !isPrimaryDomain(d.domain) && d.health !== "Healthy" && d.mailboxes > 0);
+    const primary = doms.find(d => isPrimaryDomain(d.domain));
+    const notConnected = mbs.filter(m => !m.sender), notWarming = mbs.filter(m => !/warm|active/i.test(m.warmup || ""));
+    return { doms, mbs, pendingNoMb, pendingWithMb, primary, notConnected, notWarming };
+  }
+
+  function attentionItems() {
+    const out = [], o = S.outreach, sys = S.system || {}, x = infraIssues();
+    const review = S.leads.filter(l => l.approval === "Needs Review").length;
+    if (!(o && o.connected)) out.push({ sev: "block", rank: 1, t: "Sender not connected", d: "Approved leads can't be emailed yet. No sending tool is linked to your InboxKit mailboxes, and Getlead can't send email.", btn: "Connect Sender", act: "go:infra" });
+    if (x.primary && /delet|remov/i.test(x.primary.status || "")) out.push({ sev: "block", rank: 2, t: "Confirm the primary domain change in InboxKit", d: "InboxKit lists rscentralvalleycleaning.com as scheduled for removal from InboxKit. This does not delete the domain itself, but confirm it was intended.", btn: "Review Domain", act: "go:infra" });
+    if (sys.railway && sys.railway.web !== "deployed") out.push({ sev: "block", rank: 3, t: "Railway deployment incomplete", d: `PostgreSQL is ${esc(sys.railway.postgres || "unknown")}; the web app is ${esc(sys.railway.web || "unknown")}. Until it's deployed, data lives in this dashboard's store, not Railway PostgreSQL.`, btn: "Finish Railway Setup", act: "modal:railway", ext: true });
+    if (x.notWarming.length) out.push({ sev: "warn", rank: 4, t: `${x.notWarming.length} mailbox${x.notWarming.length === 1 ? "" : "es"} not warming`, d: "New Google mailboxes need about 2–3 weeks of warmup before cold volume.", btn: "View Mailboxes", act: "go:infra" });
+    if (x.pendingWithMb.length) out.push({ sev: "warn", rank: 5, t: `${x.pendingWithMb.length} domain${x.pendingWithMb.length === 1 ? "" : "s"} with mailboxes but incomplete DNS`, d: "Mail from these domains may land in spam until SPF, DKIM and DMARC are live.", btn: "Fix DNS", act: "go:infra" });
+    if (x.pendingNoMb.length) out.push({ sev: "info", rank: 6, t: `${x.pendingNoMb.length} domain${x.pendingNoMb.length === 1 ? "" : "s"} with pending DNS`, d: "No mailboxes on these yet, so InboxKit hasn't published their email records.", btn: "Fix DNS", act: "go:infra" });
+    if (review) out.push({ sev: "warn", rank: 7, t: `${review} lead${review === 1 ? "" : "s"} waiting for approval`, d: "Qualified leads with a verified decision maker.", btn: "Review Leads", act: "go:queue" });
+    const bad = (S.meta?.runs || []).filter(r => /fail|partial/i.test(r.status || ""));
+    if (bad.length) out.push({ sev: "warn", rank: 8, t: `${bad.length} run${bad.length === 1 ? "" : "s"} failed or stopped early`, d: `Latest: ${esc(bad[0].name)} on ${esc(fmtDT(bad[0].at))}.`, btn: "View Run", act: "go:activity" });
+    return out.sort((a, b) => a.rank - b.rank);
+  }
+  function attentionPanel() {
+    const items = attentionItems();
+    return `<section class="panel"><div class="panel-h"><div><h2>Needs your attention</h2><p>Only real, unresolved items · blockers first</p></div></div>
+      <div class="panel-b" style="padding:8px 0 0">${items.length ? `<div class="attn">${items.map(i => `<div class="attn-row"><span class="sev ${i.sev}" aria-label="${i.sev === "block" ? "Blocker" : i.sev === "warn" ? "Warning" : "Info"}"></span>
+        <div style="min-width:0"><div class="t">${i.t}${i.ext ? `<span class="ext">external action</span>` : ""}</div><div class="d">${i.d}</div></div>
+        <button class="btn sm ${i.sev === "block" ? "dark" : ""}" data-act="${i.act}">${i.btn}</button></div>`).join("")}</div>` : `<div class="empty"><b>Nothing needs you right now</b></div>`}</div></section>`;
+  }
+
+  function e2eSteps() {
+    const L = S.leads, o = S.outreach || {}, sys = S.system || {}, runs = S.meta?.runs || [];
+    const deployed = sys.railway?.web === "deployed";
+    const found = L.some(l => l.source === "Getlead");
+    const deduped = runs.some(r => r.rows && r.companies != null && r.companies < r.rows) || L.length > 0 && runs.some(r => /complete/.test(r.status || ""));
+    const scored = L.some(l => typeof l.score === "number");
+    const researched = L.some(l => l.research);
+    const approved = L.some(l => l.approval === "Approved");
+    const sender = !!o.connected, sent = (o.sent || o.sentTotal || 0) > 0, reply = (o.replies || 0) > 0;
+    return [
+      ["Lead found", found ? "ok" : "todo", found ? `${L.length} companies from Getlead` : "Run Find Leads"],
+      ["Saved to Railway PostgreSQL", deployed ? "ok" : "bad", deployed ? "Web app deployed" : "Blocked: web app not deployed — saved to dashboard store meanwhile"],
+      ["Deduplicated", deduped ? "ok" : "todo", deduped ? "Duplicates merged by domain / company" : "Waiting for a run"],
+      ["Scored", scored ? "ok" : "todo", scored ? "100-point score on every lead" : "—"],
+      ["Claude researched", researched ? "ok" : "todo", researched ? `${L.filter(l => l.research).length} researched` : "Click Research with Claude on a lead"],
+      ["Approved", approved ? "ok" : "todo", approved ? `${L.filter(l => l.approval === "Approved").length} approved` : "Approve a lead in the queue"],
+      ["Sender connected", sender ? "ok" : "bad", sender ? "Connected" : "Blocked: no sender linked"],
+      ["Email sent", sent ? "ok" : "na", sent ? "Sent" : "Needs a sender + your launch approval"],
+      ["Reply synced", reply ? "ok" : "na", reply ? "Syncing" : "Needs sent email"],
+      ["Dashboard updated", sent && reply ? "ok" : "na", sent && reply ? "Live" : "After replies sync"],
+    ];
+  }
+  function e2ePanel() {
+    const steps = e2eSteps();
+    const blocker = steps.find(s => s[1] === "bad") || steps.find(s => s[1] === "todo");
+    return `<section class="panel"><div class="panel-h"><div><h2>End-to-end test</h2><p>${blocker ? `Current blocker: <b>${esc(blocker[0])}</b>` : "Full loop working"}</p></div></div>
+      <div class="panel-b"><div class="e2e">${steps.map(([n, st, d]) => `<div class="e2e-step ${st}"><b>${esc(n)}</b><span>${esc(d)}</span></div>`).join("")}</div></div></section>`;
+  }
+
+  function railwayModal() {
+    const r = S.system?.railway || {};
+    return { title: "Finish Railway setup", body: `<p>Railway project <b>${esc(r.project || "rs-lead-gen-os")}</b>: PostgreSQL ${esc(r.postgres || "unknown")}, web app ${esc(r.web || "unknown")}.</p>
+      <ol class="steps"><li>Railway → <b>rs-lead-gen-os</b> → <b>Settings → Tokens</b> → <b>Create Token</b>.</li><li>Paste the token to Claude in chat.</li><li>Claude deploys the app, connects it to PostgreSQL and copies this dashboard's data into it.</li></ol>
+      <p class="small muted">External action — done in Railway, not from this dashboard.</p>`, ok: null };
+  }
+
+  function infraActionCards() {
+    const x = infraIssues(), cards = [];
+    if (x.primary) cards.push(`<div class="issue"><div><h3>${esc(x.primary.domain)} <span class="protect">Primary Business Domain — Protected</span></h3>
+      <p><span class="lbl">InboxKit status</span>${/delet|remov/i.test(x.primary.status || "") ? "Scheduled for removal from InboxKit only" : esc(x.primary.status)}</p>
+      <p><span class="lbl">Domain registration</span>Not affected unless independently confirmed</p>
+      <p><span class="lbl">Cold outreach</span>Never used — excluded from mailbox rotation and campaign assignment</p>
+      <p><span class="lbl">Next</span>Confirm in InboxKit that removing it from InboxKit was intended. Your regular business email is not managed from here.</p></div>
+      <div><a class="btn sm" href="https://www.inboxkit.com" target="_blank" rel="noreferrer">Open InboxKit</a><div class="small muted" style="margin-top:4px">External: InboxKit → Domains</div></div></div>`);
+    if (x.pendingWithMb.length) cards.push(`<div class="issue"><div><h3>DNS incomplete on ${x.pendingWithMb.length} domain${x.pendingWithMb.length === 1 ? "" : "s"} with mailboxes</h3>
+      <p><span class="lbl">What's wrong</span>${x.pendingWithMb.map(d => `${esc(d.domain)} (missing: ${["spf", "dkim", "dmarc"].filter(k => d[k] !== true).map(k => k.toUpperCase()).join(", ") || "propagation"})`).join("; ")}</p>
+      <p><span class="lbl">Next</span>InboxKit publishes these records automatically. If they're still missing after 48 hours, open the domain in InboxKit and re-run DNS setup.</p></div>
+      <div><button class="btn sm" data-act="toggle:dns">View Setup Instructions</button></div></div>`);
+    if (x.pendingNoMb.length) cards.push(`<div class="issue"><div><h3>DNS setup pending on ${x.pendingNoMb.length} domain${x.pendingNoMb.length === 1 ? "" : "s"}</h3>
+      <p><span class="lbl">What's wrong</span>SPF, DKIM and DMARC are not published on ${x.pendingNoMb.map(d => esc(d.domain)).join(", ")}. None of them has mailboxes yet, and InboxKit sets up email records when mailboxes are provisioned.</p>
+      <p><span class="lbl">Next</span>Decide whether you need these domains now. Your current 18 mailboxes are on the 6 healthy domains. Adding mailboxes is a purchase in InboxKit.</p>
+      ${S.showDns ? `<ol class="steps"><li>InboxKit → <b>Domains</b> → pick the domain.</li><li>Order mailboxes for it (3 per domain is the plan). This is a paid step.</li><li>InboxKit creates MX, SPF, DKIM and DMARC through Cloudflare automatically.</li><li>Wait for DNS to show “propagated”, then ask Claude to re-sync this page.</li></ol>` : ""}</div>
+      <div><button class="btn sm" data-act="toggle:dns">${S.showDns ? "Hide instructions" : "View Setup Instructions"}</button><div class="small muted" style="margin-top:4px">External action in InboxKit</div></div></div>`);
+    if (x.notConnected.length) cards.push(`<div class="issue"><div><h3>${x.notConnected.length} mailbox${x.notConnected.length === 1 ? "" : "es"} not connected to a sender</h3>
+      <p><span class="lbl">What's wrong</span>No sending tool is linked to these InboxKit mailboxes, so nothing can be sent from them. Getlead does not send email.</p>
+      <p><span class="lbl">Next</span>Choose a sender, then export the mailboxes to it from InboxKit (Mailboxes → Export to sequencer). Your primary domain is never included.</p></div>
+      <div><a class="btn sm dark" href="https://www.inboxkit.com" target="_blank" rel="noreferrer">Open Provider</a><div class="small muted" style="margin-top:4px">External: needs your sender decision</div></div></div>`);
+    if (x.notWarming.length) cards.push(`<div class="issue"><div><h3>Warmup not started on ${x.notWarming.length} mailbox${x.notWarming.length === 1 ? "" : "es"}</h3>
+      <p><span class="lbl">Current state</span>InboxKit reports no active warmup subscriptions. These mailboxes were created on Oct 1.</p>
+      <p><span class="lbl">Next</span>Warmup comes either from InboxKit's paid add-on ($3 per mailbox per month) or from your sender once one is connected. Plan 2–3 weeks before cold volume.</p></div>
+      <div><a class="btn sm" href="https://www.inboxkit.com" target="_blank" rel="noreferrer">View Warmup Options</a><div class="small muted" style="margin-top:4px">External · paid add-on needs your approval</div></div></div>`);
+    return cards.length ? `<section class="panel"><div class="panel-h"><div><h2>What needs fixing</h2><p>Each item says what's wrong and what happens next. Buttons that open another site are external actions.</p></div></div><div class="panel-b" style="padding:8px 0 0">${cards.join("")}</div></section>` : "";
+  }
+
+  /* ───────── Research with Claude (one company at a time) ───────── */
+  async function researchLead(id) {
+    const l = S.leads.find(x => x.id === id); if (!l || !db || !S.canEdit) return;
+    if (!sample) { toast("Research isn't available in this view. Ask Claude in chat to research this company."); return; }
+    S.researching = id; render();
+    const facts = { company: l.company, website: l.website, domain: l.domain, business_type: l.type, industry: l.industry, naics: l.naics || null, employees: l.employees, city: l.city, county: countyOf(l.city), state: "CA", contact_title: l.contact?.title || null };
+    const prompt = `You prepare commercial-cleaning outreach notes for R&S Central Valley Cleaning (recurring commercial cleaning in Bakersfield / Kern County, CA: written room-by-room scopes, one supervisor per account, free 20-minute walkthrough).
+Research ONE company using ONLY the facts below (from a B2B data provider). You have no web access.
+Rules: do not invent facts, services, locations, problems or current vendors. Never state an assumed problem as fact — phrase needs as "typical for this type of facility". No personal details about the contact. Be concise and practical. If the facts are thin, say so and keep confidence low (never above 60 without verified website content).
+Facts: ${JSON.stringify(facts)}
+Return ONLY JSON: {"business_summary": string (1-2 sentences, only from the facts), "likely_cleaning_need": string (what this facility type usually needs, framed as typical), "personalization_note": string (one line grounded in a fact above), "outreach_angle": string (one line), "confidence": integer 0-100}`;
+    try {
+      const r = await sample.json(prompt, { modelTier: "default" });
+      const clean = s => String(s || "").slice(0, 600);
+      const research = { business_summary: clean(r.business_summary), likely_cleaning_need: clean(r.likely_cleaning_need), personalization_note: clean(r.personalization_note), outreach_angle: clean(r.outreach_angle), confidence: Math.max(0, Math.min(60, parseInt(r.confidence) || 0)) };
+      if (!research.business_summary) throw { code: "bad_output" };
+      const researchedAt = new Date().toISOString();
+      await db.doc("leads/" + id).update({ research, researchedAt, researchBasis: "Getlead record only (no web)", researchRequested: false });
+      l.research = research; l.researchedAt = researchedAt; l.researchBasis = "Getlead record only (no web)";
+      toast(`Research saved for ${l.company}`);
+    } catch (e) {
+      const c = e?.code;
+      toast(c === "not_granted" ? "Research wasn't allowed. You can allow it when the page asks again." : c === "rate_limited" ? "Too many requests — try again in a minute." : c === "cancelled" ? "Research cancelled." : "Research didn't finish — nothing was saved. Try again.");
+    }
+    S.researching = null; render();
+  }
+
+  function confirmAction(title, body, okLabel, fn) { S.confirm = { title, body, okLabel, fn }; renderModal(); }
+  function renderModal() {
+    const root = document.getElementById("modal-root"); if (!root) return;
+    const m = S.confirm; if (!m) { root.innerHTML = ""; return; }
+    root.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(m.title)}"><div class="modal-box"><h2>${esc(m.title)}</h2>${m.html || `<p>${esc(m.body)}</p>`}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button class="btn" data-modal="cancel">${m.fn ? "Cancel" : "Close"}</button>${m.fn ? `<button class="btn dark" data-modal="ok">${esc(m.okLabel || "Confirm")}</button>` : ""}</div></div></div>`;
+    root.querySelector('[data-modal="' + (m.fn ? "ok" : "cancel") + '"]')?.focus();
+  }
+
+  /* ───────── Find Leads: runs Getlead from this page, then dedupes, scores and queues ───────── */
+  const CATS = [
+    ["Medical offices", ["6211", "6213"], 1], ["Dental offices", ["621210"], 1], ["Clinics", ["6214", "6215"], 1],
+    ["Office buildings", ["531120", "5312"], 1], ["Property management", ["531311", "531312"], 1], ["Warehouses", ["4931", "531130"], 1],
+    ["Distribution centers", ["4921", "4841", "42"]], ["Manufacturing", ["31", "32", "33"]], ["Schools", ["6111"]], ["Churches", ["8131"]],
+    ["Gyms / fitness", ["71394"]], ["Auto dealerships", ["4411"]], ["Daycares", ["624410"]], ["HOAs", ["813990"]],
+    ["Facilities management", ["561210"]], ["Professional offices", ["5411", "5412", "5242"]]];
+  const CITIES = ["Bakersfield", "Fresno", "Visalia", "Delano", "Shafter", "Wasco", "Tulare", "Hanford", "Clovis", "Porterville"];
+  const TITLES = ["Facilities Manager", "Director of Facilities", "Property Manager", "Building Manager", "Operations Manager", "Director of Operations", "Office Manager", "General Manager", "Asset Manager", "Owner", "Practice Manager"];
+  const COLS = ["Contact Full Name", "First Name", "Last Name", "Current Job Title", "Seniority Level", "Email", "Email Verification Status", "Email Last Verification Date", "Cellphone", "Direct Office Phone", "Contact LinkedIn URL", "Company Name", "Company Domain", "Company Website", "Company Phone", "Company LinkedIn URL", "Employee Count Range", "Company Industry (LinkedIn)", "NAICS Industry Code", "Company Street Address", "Company City", "Company State", "Company Postal Code", "LinkedIn Location Count", "Year Founded", "Website Active?"];
+  const STAGES = ["Searching", "Deduplicating", "Qualifying", "Scoring", "Saving", "Queueing"];
+  const F = { cities: ["Bakersfield"], cats: CATS.filter(c => c[2]).map(c => c[0]), titles: TITLES.slice(), verified: true, phone: false, count: 50, minScore: 65, skipKnown: true, addCity: "" };
+  const R = { busy: null, matches: null, stage: -1, sum: null, log: [], err: null };
+
+  // Classification (mirrors lib/classify.ts in the codebase)
+  const NAICS = [["561720","Janitorial competitor"],["561790","Janitorial competitor"],["561210","Facilities management"],["621210","Dental office"],["6211","Medical office"],["6213","Medical office"],["6214","Clinic"],["6215","Clinic"],["621","Healthcare facility"],["622","Healthcare facility"],["623","Healthcare facility"],["624410","Daycare"],["813990","HOA"],["531311","Property management"],["531312","Property management"],["531110","Commercial real estate"],["531130","Warehouse"],["531120","Commercial real estate"],["531210","Real estate brokerage"],["5312","Commercial real estate"],["531","Commercial real estate"],["4931","Warehouse"],["4921","Distribution center"],["4841","Distribution center"],["42","Distribution center"],["31","Manufacturing"],["32","Manufacturing"],["33","Manufacturing"],["2111","Industrial facility"],["2131","Industrial facility"],["2211","Industrial facility"],["6111","School"],["6112","School"],["6113","School"],["6116","School"],["8131","Church"],["71394","Gym / Fitness"],["4411","Auto dealership"],["44","Retail center"],["45","Retail center"],["7211","Hospitality"],["92","Government"],["52","Office"],["54","Office"],["55","Office"],["5611","Office"],["524","Office"]];
+  const IND = [[/janitorial|commercial cleaning|cleaning services/i,"Janitorial competitor"],[/facilities services/i,"Facilities management"],[/dental/i,"Dental office"],[/medical practices?|physician|chiropract|optometr/i,"Medical office"],[/hospital|health care|healthcare|mental health/i,"Healthcare facility"],[/real estate|property/i,"Commercial real estate"],[/warehousing|storage/i,"Warehouse"],[/logistics|supply chain|transportation|trucking/i,"Distribution center"],[/manufactur|food production|machinery|packaging/i,"Manufacturing"],[/oil|energy|utilities|chemical/i,"Industrial facility"],[/primary.*education|education administration|higher education/i,"School"],[/religious/i,"Church"],[/wellness and fitness|fitness/i,"Gym / Fitness"],[/motor vehicle|automotive/i,"Auto dealership"],[/retail/i,"Retail center"],[/child day care|childcare/i,"Daycare"],[/government|public safety/i,"Government"],[/hospitality|hotel/i,"Hospitality"],[/accounting|legal|law practice|insurance|financial|banking|consulting|architecture|engineering services/i,"Office"]];
+  const TARGET = new Set(["Dental office","Medical office","Clinic","Healthcare facility","Property management","Commercial real estate","Office","Warehouse","Distribution center","Manufacturing","Industrial facility","School","Church","Gym / Fitness","Retail center","Auto dealership","Daycare","Coworking","HOA","Facilities management"]);
+  const RECUR = new Set(["Dental office","Medical office","Clinic","Healthcare facility","Property management","Commercial real estate","Office","Warehouse","Distribution center","Manufacturing","School","Church","Gym / Fitness","Daycare","Coworking","Auto dealership","Retail center"]);
+  function classify(codes, industry) {
+    const types = codes.map(c => (NAICS.find(([p]) => c.startsWith(p)) || [])[1]).filter(Boolean);
+    if (types.includes("Janitorial competitor") || /cleaning services|janitorial/i.test(industry || "")) return "Janitorial competitor";
+    if (/real estate/i.test(industry || "")) { for (const t of ["Property management", "Warehouse", "Commercial real estate", "Real estate brokerage"]) if (types.includes(t)) return t; return "Commercial real estate"; }
+    const it = industry ? (IND.find(([re]) => re.test(industry)) || [])[1] : null;
+    if (it && it !== "Office") return it;
+    if (types.length) { const n = {}; types.forEach(t => n[t] = (n[t] || 0) + 1); return types.reduce((b, t) => n[t] > n[b] ? t : b, types[0]); }
+    return it || "Other / Unclassified";
+  }
+  const TP = ["facilities manager","director of facilities","property manager","building manager","operations manager","director of operations","office manager","general manager","asset manager","owner","practice manager","plant manager","club manager","facility manager","facilities director","president","ceo","chief executive","founder","managing partner","administrator"];
+  const TA = [[/\bfacilit(y|ies)\b.*\b(manager|supervisor|coordinator)\b/,0],[/\b(director|head|vp)\b.*\bfacilit/,1],[/\bproperty\b.*\bmanager\b/,2],[/\bbuilding\b.*\b(manager|engineer)\b/,3],[/\b(director|vp|head)\b.*\boperations\b/,5],[/\boperations\b.*\bmanager\b/,4],[/\boffice\b.*\b(manager|administrator)\b/,6],[/\bgeneral\b.*\bmanager\b|\bgm\b/,7],[/\basset\b.*\bmanager\b/,8],[/\b(owner|co-owner|proprietor)\b/,9],[/\bpractice\b.*\b(manager|administrator)\b/,10],[/\bplant\b.*\bmanager\b/,11]];
+  function rank(title) { if (!title) return 999; const t = title.toLowerCase(); if (/\b(intern|student|volunteer|retired|former)\b/.test(t)) return 999; for (const [re, i] of TA) if (re.test(t)) return i; const i = TP.findIndex(x => t.includes(x)); return i < 0 ? 999 : i; }
+  function scoreLead(l) {
+    const r = [], c = l.contact, type = l.type; let fit = 0, con = 0, dq = 0, op = 0;
+    if (type !== "Janitorial competitor" && type !== "Government") { fit += 10; r.push("+10 commercial prospect"); }
+    if (RECUR.has(type)) { fit += 10; r.push("+10 recurring cleaning likely"); }
+    if (TARGET.has(type)) { fit += 10; r.push(`+10 target category (${type})`); }
+    if (/^(ca|california)$/i.test(l.state || "CA")) { fit += 5; r.push("+5 California"); }
+    const minEmp = parseInt((l.employees || "").split(" ")[0]) || 0, locs = l.inputs?.locationCount || 0;
+    if (minEmp >= 11 || locs >= 2) { fit += 5; r.push("+5 meaningful footprint"); }
+    const ver = c?.emailStatus === "VALID", rk = rank(c?.title);
+    if (c && rk <= 9) { con += 10; r.push(`+10 preferred decision maker (${c.title})`); } else if (c && rk < 999) { con += 6; r.push(`+6 eligible decision maker (${c.title})`); }
+    if (c?.email && ver) { con += 10; r.push("+10 verified direct email"); }
+    if (c?.phone || l.phone) { con += 3; r.push("+3 phone"); }
+    if (c?.linkedin) { con += 2; r.push("+2 LinkedIn"); }
+    if (l.website && l.inputs?.websiteActive !== false) { dq += 5; r.push("+5 website confirmed"); }
+    if (l.address && l.city) { dq += 5; r.push("+5 address present"); }
+    if (c?.verifiedAt && Date.now() - new Date(c.verifiedAt).getTime() < 180 * 864e5) { dq += 5; r.push("+5 email verified within 6 months"); }
+    if (ver) { dq += 5; r.push("+5 verified email"); }
+    if (locs >= 2) { op += 5; r.push("+5 multiple locations"); }
+    if (l.inputs?.foundedYear && l.inputs.foundedYear >= new Date().getFullYear() - 2) { op += 5; r.push("+5 newly opened"); }
+    const total = Math.min(100, fit + con + dq + op);
+    l.score = total; l.band = total >= 80 ? "Priority" : total >= 65 ? "Good" : total >= 50 ? "Review" : "Hold";
+    l.breakdown = { fit, contact: con, dataQuality: dq, opportunity: op }; l.reasons = r;
+  }
+  const normName = s => { const t = (s || "").toLowerCase().replace(/&/g, " and ").replace(/[.']/g, "").replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean); if (t[0] === "the") t.shift(); const suf = new Set(["inc","incorporated","llc","ltd","co","corp","corporation","company","pc","pllc","lp","llp","dds","dmd","md"]); while (t.length > 1 && suf.has(t[t.length - 1])) t.pop(); return t.join(" "); };
+  const normDomain = u => { if (!u) return ""; try { return new URL(/^https?:/i.test(u) ? u : "https://" + u).hostname.replace(/^www\./, "").toLowerCase(); } catch (e) { return ""; } };
+  const v = x => (x === null || x === undefined || x === "") ? null : String(x).trim() || null;
+  function mapRow(row) {
+    const company = v(row["Company Name"]); if (!company) return null;
+    const website = v(row["Company Website"]), codes = (v(row["NAICS Industry Code"]) || "").split(/[;,]/).map(s => s.trim()).filter(Boolean);
+    const name = v(row["Contact Full Name"]) || [v(row["First Name"]), v(row["Last Name"])].filter(Boolean).join(" ") || null;
+    const vd = v(row["Email Last Verification Date"]);
+    return {
+      company, domain: normDomain(v(row["Company Domain"]) || website) || null, website, phone: v(row["Company Phone"]), companyLinkedin: v(row["Company LinkedIn URL"]),
+      industry: v(row["Company Industry (LinkedIn)"]), naics: codes.join(";"), employees: v(row["Employee Count Range"]), address: v(row["Company Street Address"]),
+      city: v(row["Company City"]), state: /california/i.test(row["Company State"] || "") ? "CA" : v(row["Company State"]), postal: v(row["Company Postal Code"]),
+      type: classify(codes, v(row["Company Industry (LinkedIn)"])), source: "Getlead", foundAt: new Date().toISOString(),
+      inputs: { locationCount: row["LinkedIn Location Count"] ?? null, foundedYear: Number(row["Year Founded"]) || null, websiteActive: typeof row["Website Active?"] === "boolean" ? row["Website Active?"] : null },
+      contact: name || v(row["Email"]) ? { name, title: v(row["Current Job Title"]), email: v(row["Email"]), emailStatus: (v(row["Email Verification Status"]) || (v(row["Email"]) ? "UNKNOWN" : "NONE")).toUpperCase(), verifiedAt: vd ? vd.replace(" ", "T").slice(0, 19) + "Z" : null, phone: v(row["Direct Office Phone"]) || v(row["Cellphone"]), linkedin: v(row["Contact LinkedIn URL"]) } : null,
+      others: [], approval: "Not queued",
+    };
+  }
+  const better = (a, b) => { if (!b) return true; const av = a.emailStatus === "VALID", bv = b.emailStatus === "VALID"; return av !== bv ? av : rank(a.title) < rank(b.title); };
+  function findExisting(p, pool) {
+    return pool.find(l => (p.domain && l.domain === p.domain) || (p.companyLinkedin && l.companyLinkedin === p.companyLinkedin) || (normName(l.company) === normName(p.company) && (l.postal || "") === (p.postal || "") && (l.address || "").toLowerCase() === (p.address || "").toLowerCase()));
+  }
+
+  function findView() {
+    const chips = (opts, sel, key) => `<div class="chips">${opts.map(o => `<button type="button" class="chip" data-fchip="${key}" data-val="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join("")}</div>`;
+    const s = R.sum, cur = R.stage, busy = !!R.busy;
+    return `
+      <div class="head"><div><h1>Find leads</h1><p class="muted">Search Getlead from here. New companies are checked for duplicates, scored out of 100 and queued for your approval. Nothing is emailed.</p></div></div>
+      ${!S.canEdit ? `<div class="notice warn"><div><b>View only</b>Only people who can edit this dashboard can run searches.</div></div>` : ""}
+      <div class="split">
+        <aside class="panel" aria-label="Search filters">
+          <div class="fsec"><h3>Cities (California)</h3>${chips([...new Set([...CITIES, ...F.cities])], F.cities, "cities")}
+            <div style="display:flex;gap:6px"><input id="addCity" placeholder="Add a city…" value="${esc(F.addCity)}" style="flex:1;min-width:0" aria-label="Add a city"><button class="btn sm" data-addcity>Add</button></div></div>
+          <div class="fsec"><h3>Business type</h3>${chips(CATS.map(c => c[0]), F.cats, "cats")}</div>
+          <div class="fsec"><h3>Decision makers</h3>${chips(TITLES, F.titles, "titles")}</div>
+          <div class="fsec"><h3>Requirements</h3>
+            <label><input type="checkbox" id="fVerified" ${F.verified ? "checked" : ""}> Verified email only</label>
+            <label><input type="checkbox" id="fPhone" ${F.phone ? "checked" : ""}> Must have a phone</label>
+            <label><input type="checkbox" id="fSkip" ${F.skipKnown ? "checked" : ""}> Skip companies already in the dashboard</label></div>
+          <div class="fsec"><h3>Run size &amp; quality</h3>
+            <label class="col">Leads to pull (max 300)<input type="number" id="fCount" min="1" max="300" value="${F.count}"></label>
+            <label class="col">Minimum score to queue<input type="number" id="fMin" min="0" max="100" value="${F.minScore}"></label></div>
+        </aside>
+        <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+          <section class="panel"><div class="panel-b" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="btn" data-run="count" ${busy || !S.canEdit || !F.cities.length ? "disabled" : ""}>${R.busy === "count" ? "Counting…" : "Check how many match (free)"}</button>
+            <button class="btn dark" data-run="search" ${busy || !S.canEdit || !F.cities.length || !F.cats.length ? "disabled" : ""}>${R.busy === "search" ? "Finding leads…" : `Find ${F.count} leads`}</button>
+            ${R.matches !== null ? `<span class="badge info">${R.matches.toLocaleString()} contacts match${F.skipKnown ? " (before skipping known companies)" : ""}</span>` : ""}
+          </div><div class="panel-b small muted" style="padding-top:0">Uses your Getlead plan (1 credit per contact returned; counting is free). The first run asks you to allow this page to use your Getlead connection.</div></section>
+          ${R.err ? `<div class="notice warn"><div><b>${esc(R.err.title)}</b>${esc(R.err.detail)}</div></div>` : ""}
+          ${cur >= 0 || s ? `<section class="panel">
+            <div class="panel-h"><div><h2>${busy ? "Run in progress" : "Last run"}</h2><p>${busy ? "Keep this tab open until it finishes." : "Saved to the dashboard."}</p></div></div>
+            <div class="stages" style="margin-top:10px">${STAGES.map((st, i) => `<div class="stage ${i < cur || (!busy && s) ? "done" : i === cur ? "cur" : ""}">${st}</div>`).join("")}</div>
+            ${s ? `<div class="panel-b"><div class="sgrid">${[["Contacts returned", s.rows], ["New companies", s.newOrgs], ["Already known", s.dupes], ["New contacts", s.newContacts], ["Verified emails", s.verified], ["Priority (80+)", s.priority], ["Good (65–79)", s.good], ["Review (50–64)", s.review], ["Added to queue", s.queued], ["Competitors skipped", s.competitors]].map(([l, n]) => `<div><b>${n}</b><span>${l}</span></div>`).join("")}</div>
+              ${!busy ? `<div style="display:flex;gap:8px;margin-top:12px"><button class="btn dark" data-go="queue">Review queue</button><button class="btn" data-go="leads">View leads</button></div>` : ""}</div>` : ""}
+            ${R.log.length ? `<ul class="runlog">${R.log.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+          </section>` : ""}
+        </div>
+      </div>`;
+  }
+
+  function filtersFor(limit, offset) {
+    const f = { office_states: ["California"], office_cities: F.cities, naics_codes: [...new Set(CATS.filter(c => F.cats.includes(c[0])).flatMap(c => c[1]))], job_titles: F.titles };
+    if (F.verified) f.email_status = ["VALID"];
+    if (F.phone) f.require_phone = true;
+    if (F.skipKnown) { const known = [...new Set(S.leads.map(l => l.domain).filter(Boolean))].slice(0, 500); if (known.length) f.exclude_domains = known; }
+    if (limit) { f.limit = limit; f.offset = offset || 0; f.columns = COLS; }
+    return f;
+  }
+  function mcpErr(e) {
+    const c = e?.code;
+    if (c === "server_not_connected" || c === "selection_required") return { title: "Getlead isn't connected for you", detail: "Add or select the “get leads” connector in claude.ai → Settings → Connectors, then try again." };
+    if (c === "needs_reauth") return { title: "Getlead needs to be reconnected", detail: "Reconnect “get leads” in claude.ai → Settings → Connectors, then try again." };
+    if (c === "not_in_manifest" || c === "consent_required") return { title: "This page isn't allowed to use Getlead", detail: "You declined access or turned it off for this page. Allow it from the page's connector settings to run searches." };
+    if (c === "blocked_by_policy" || c === "approval_required") return { title: "Your organization blocks this Getlead tool", detail: "An admin has to allow it before searches can run here." };
+    if (c === "tool_error") return { title: "Getlead reported an error", detail: e.message || "Check your Getlead plan or fair-use limit." };
+    if (c === "server_unavailable" || c === "upstream_error") return { title: "Getlead didn't respond", detail: "Try again in a minute. Nothing was saved from the failed call." };
+    if (c === "not_granted" || c === "capability_disabled") return { title: "Searches can't run in this view", detail: "Open the dashboard on claude.ai to run searches." };
+    return { title: "The search didn't finish", detail: e?.message || "Try again." };
+  }
+
+  async function runCount() {
+    if (!mcp) { R.err = { title: "Searches can't run in this view", detail: "Open the dashboard on claude.ai while signed in." }; render(); return; }
+    R.busy = "count"; R.err = null; render();
+    try { const res = await mcp.callTool("get leads", "count_contacts", filtersFor()); R.matches = Number(res.payload?.total_matching ?? 0); }
+    catch (e) { R.err = mcpErr(e); }
+    R.busy = null; render();
+  }
+
+  async function runSearch() {
+    if (!mcp) { R.err = { title: "Searches can't run in this view", detail: "Open the dashboard on claude.ai while signed in." }; render(); return; }
+    if (!db || !S.canEdit) return;
+    const want = Math.max(1, Math.min(300, F.count || 50)), minScore = F.minScore;
+    R.busy = "search"; R.err = null; R.stage = 0; R.log = []; R.sum = { rows: 0, newOrgs: 0, dupes: 0, newContacts: 0, verified: 0, priority: 0, good: 0, review: 0, queued: 0, competitors: 0 };
+    const log = m => { R.log.unshift(`${new Date().toLocaleTimeString()} ${m}`); render(); };
+    const rows = []; let offset = 0;
+    try {
+      while (rows.length < want) {
+        const n = Math.min(100, want - rows.length);
+        log(`Searching Getlead (${rows.length + 1}–${rows.length + n})…`);
+        const res = await mcp.callTool("get leads", "search_contacts", filtersFor(n, offset), { cache: false });
+        const p = res.payload || {}; const got = Array.isArray(p.contacts) ? p.contacts : [];
+        rows.push(...got); log(`Received ${got.length} contacts${p.total_available != null ? ` of ${p.total_available} available` : ""}.`);
+        if (!p.has_more || !got.length) break;
+        offset = p.next_offset ?? offset + got.length;
+      }
+    } catch (e) { R.err = mcpErr(e); if (!rows.length) { R.busy = null; R.stage = -1; render(); return; } log(`Stopped early: ${R.err.title}. Saving what arrived.`); }
+    R.sum.rows = rows.length;
+
+    R.stage = 1; render();
+    const touched = new Map(); // id -> lead (new or modified)
+    const pool = S.leads.map(l => ({ ...l, others: [...(l.others || [])] }));
+    for (const row of rows) {
+      const p = mapRow(row); if (!p) continue;
+      let org = findExisting(p, pool);
+      if (!org) { org = { id: (crypto.randomUUID ? crypto.randomUUID() : "l" + Date.now() + Math.random().toString(36).slice(2)), ...p }; pool.push(org); R.sum.newOrgs++; org.__new = true; }
+      else if (!org.__new) R.sum.dupes++;
+      if (p.contact) {
+        const all = [org.contact, ...(org.others || [])].filter(Boolean);
+        const dup = all.some(c => (p.contact.email && c.email && c.email.toLowerCase() === p.contact.email.toLowerCase()) || (p.contact.linkedin && c.linkedin === p.contact.linkedin) || (c.name && c.name === p.contact.name));
+        if (!dup) {
+          R.sum.newContacts++; if (p.contact.emailStatus === "VALID") R.sum.verified++;
+          if (org.__new && org.contact === p.contact) { /* first contact */ }
+          else if (better(p.contact, org.contact)) { if (org.contact) org.others = [{ name: org.contact.name, title: org.contact.title, email: org.contact.email }, ...(org.others || [])]; org.contact = p.contact; }
+          else org.others = [...(org.others || []), { name: p.contact.name, title: p.contact.title, email: p.contact.email }];
+          touched.set(org.id, org);
+        } else if (org.__new && org.contact === p.contact) { R.sum.newContacts++; if (p.contact.emailStatus === "VALID") R.sum.verified++; touched.set(org.id, org); }
+      }
+      if (org.__new) touched.set(org.id, org);
+    }
+    log(`${R.sum.newOrgs} new companies, ${R.sum.dupes} already in the dashboard.`);
+
+    R.stage = 2; render();
+    R.stage = 3; render();
+    for (const org of touched.values()) {
+      scoreLead(org);
+      if (org.type === "Janitorial competitor") { org.approval = "Suppressed"; org.why = "Janitorial competitor — auto-suppressed"; R.sum.competitors++; continue; }
+      if (org.__new) { if (org.band === "Priority") R.sum.priority++; else if (org.band === "Good") R.sum.good++; else if (org.band === "Review") R.sum.review++; }
+      const c = org.contact;
+      if ((org.approval || "Not queued") === "Not queued" && org.score >= minScore && c && rank(c.title) < 999 && c.emailStatus === "VALID" && c.email && !/rscentralvalleycleaning\.com$/i.test(c.email)) {
+        org.approval = "Needs Review"; org.why = `Score ${org.score} (${org.band}) · ${c.title} · verified email · ${org.type}`; R.sum.queued++;
+      }
+    }
+
+    R.stage = 4; render();
+    let saved = 0, failed = 0;
+    for (const org of touched.values()) {
+      const { id, __new, ...doc } = org;
+      try { await db.doc("leads/" + id).set(doc); saved++; if (saved % 10 === 0) log(`Saved ${saved} of ${touched.size}…`); }
+      catch (e) { failed++; if (e?.code === "quota_exceeded") { log("The dashboard's storage is full — stopping."); break; } }
+    }
+    log(`Saved ${saved} companies${failed ? `, ${failed} failed` : ""}.`);
+
+    R.stage = 5; render();
+    try {
+      const m = (await db.doc("meta/summary").get()).data() || {};
+      const runs = [{ at: new Date().toISOString(), name: `Find leads · ${F.cities.join(", ")}`, source: "Getlead (dashboard)", rows: R.sum.rows, companies: R.sum.newOrgs, verified: R.sum.verified, queued: R.sum.queued, status: R.err ? "partial" : "complete" }, ...(m.runs || [])].slice(0, 50);
+      await db.doc("meta/summary").set({ ...m, runs, updatedAt: new Date().toISOString() });
+    } catch (e) { log("Couldn't add this run to the run log."); }
+    R.busy = null; R.stage = STAGES.length; render();
+    toast(`${R.sum.newOrgs} new companies · ${R.sum.queued} added to your queue`);
+  }
+
+  function activity() {
+    const runs = S.meta?.runs || [];
+    const notes = S.meta?.notes || [];
+    return `
+      <div class="head"><div><h1>Runs &amp; sync</h1><p class="muted">What Claude has pulled and synced into this dashboard.</p></div></div>
+      ${notes.length ? `<section class="panel"><div class="panel-h"><h2>Open items</h2></div><div class="panel-b"><div class="list">${notes.map(n => `<div class="lrow"><div><div class="main-t">${esc(n.title)}</div><div class="sub-t">${esc(n.detail)}</div></div>${badge(n.status)}</div>`).join("")}</div></div></section>` : ""}
+      <section class="panel"><div class="panel-h"><h2>Run log</h2></div><div class="panel-b" style="padding:12px 0 0">${runs.length ? `<div class="tw"><table><thead><tr><th>When</th><th>Run</th><th>Source</th><th>Rows</th><th>Companies</th><th>Verified</th><th>Queued</th><th>Status</th></tr></thead><tbody>
+        ${runs.map(r => `<tr><td class="num">${esc(fmtDT(r.at))}</td><td>${esc(r.name)}</td><td>${esc(r.source)}</td><td class="num">${r.rows ?? "—"}</td><td class="num">${r.companies ?? "—"}</td><td class="num">${r.verified ?? "—"}</td><td class="num">${r.queued ?? "—"}</td><td>${badge(r.status)}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty"><b>No runs yet</b></div>`}</div></section>`;
+  }
+
+  function drawer() {
+    const root = document.getElementById("drawer-root");
+    const l = S.leads.find(x => x.id === S.open);
+    if (!l) { root.innerHTML = ""; return; }
+    const sb = l.breakdown || {}, c = l.contact, o = S.outreach || {}, ev = l.events || {};
+    const busy = S.researching === l.id;
+    const tl = [
+      ["Found", l.foundAt ? `${fmtD(l.foundAt)} · via ${esc(l.source)}` : null],
+      ["Verified", c?.emailStatus === "VALID" ? `Email verified${c.verifiedAt ? " " + fmtD(c.verifiedAt) : ""} (Getlead)` : null],
+      ["Researched", l.researchedAt ? `${fmtD(l.researchedAt)} · ${esc(l.researchBasis || "Claude")}` : null],
+      [l.approval === "Rejected" ? "Rejected" : l.approval === "Suppressed" ? "Suppressed" : "Approved", ["Approved", "Rejected", "Suppressed"].includes(l.approval) ? (l.decidedAt ? fmtD(l.decidedAt) : "Yes") : null],
+      ["Campaign", ev.campaign ? esc(ev.campaign) : null, !o.connected],
+      ["Sent", ev.sentAt ? fmtD(ev.sentAt) : null, !o.connected],
+      ["Reply", ev.replyAt ? `${fmtD(ev.replyAt)}${ev.replyClass ? " · " + esc(ev.replyClass) : ""}` : null, !o.connected],
+      ["Meeting", ev.meetingAt ? fmtD(ev.meetingAt) : null, !o.connected],
+      ["Closed", ev.closedAt ? fmtD(ev.closedAt) : null, !o.connected],
+    ];
+    root.innerHTML = `<div class="scrim" data-close></div>
+      <aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(l.company)}">
+        <div class="dh"><div><h2 style="font-size:17px">${esc(l.company)}</h2><p class="muted small" style="margin:3px 0 8px">${esc([l.type, l.city, countyOf(l.city) ? countyOf(l.city) + " County" : null].filter(Boolean).join(" · "))}</p><div style="display:flex;gap:6px;flex-wrap:wrap">${score(l.score)}<span class="badge">${esc(l.band)}</span>${badge(l.approval)}</div></div>
+          <button class="btn sm" data-close aria-label="Close details">✕</button></div>
+        <div class="db">
+          <div class="ds"><h3>Company</h3><dl class="kv"><dt>Company</dt><dd><b>${esc(l.company)}</b></dd><dt>Business type</dt><dd>${esc(l.type)}</dd><dt>Industry</dt><dd>${esc(l.industry || "—")}</dd>
+            <dt>City / County</dt><dd>${esc(l.city || "—")} / ${esc(countyOf(l.city) || "—")}</dd>
+            <dt>Address</dt><dd>${esc([l.address, l.postal].filter(Boolean).join(", ") || "—")}</dd>
+            <dt>Website</dt><dd>${l.website ? `<a href="${esc(l.website)}" target="_blank" rel="noreferrer">${esc(l.domain || l.website)} ↗</a>` : "—"}</dd>
+            <dt>Main phone</dt><dd class="num">${esc(l.phone || "—")}</dd><dt>Size</dt><dd>${esc(l.employees || "—")}</dd><dt>Source</dt><dd>${esc(l.source)}</dd></dl></div>
+          <div class="ds"><h3>Primary contact</h3>${c ? `<dl class="kv"><dt>Name</dt><dd><b>${esc(c.name || "—")}</b></dd><dt>Job title</dt><dd>${esc(c.title || "—")}</dd>
+            <dt>Email</dt><dd>${esc(c.email || "—")} ${c.email ? badge(c.emailStatus === "VALID" ? "Verified" : c.emailStatus) : ""}</dd><dt>Phone</dt><dd class="num">${esc(c.phone || "—")}</dd>
+            <dt>LinkedIn</dt><dd>${c.linkedin ? `<a href="${esc(c.linkedin)}" target="_blank" rel="noreferrer">Profile ↗</a>` : "Not available"}</dd></dl>` : `<p class="muted small">No decision maker found yet.</p>`}
+            ${(l.others || []).length ? `<div class="small" style="margin-top:10px"><div class="faint">Other contacts</div>${l.others.map(x => `<div style="padding:3px 0"><b>${esc(x.name)}</b> · ${esc(x.title || "—")} · ${esc(x.email || "no email")}</div>`).join("")}</div>` : ""}</div>
+          <div class="ds"><h3>Lead score</h3><p style="margin:0 0 10px">${score(l.score)} <b>${l.score ?? 0}/100</b> · ${esc(l.band)}</p>
+            <div class="sbreak">${[["Fit", sb.fit, 40], ["Contact", sb.contact, 25], ["Data", sb.dataQuality, 20], ["Opportunity", sb.opportunity, 15]].map(([a, v, m]) => `<div><span>${a}</span><b>${v ?? 0}</b><span class="faint" style="display:inline"> /${m}</span></div>`).join("")}</div>
+            <ul class="small muted" style="margin:0;padding-left:18px">${(l.reasons || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>
+          <div class="ds"><h3>Claude research</h3>${busy ? `<p class="muted small">Researching ${esc(l.company)}…</p>` : l.research ? `<dl class="kv"><dt>Business summary</dt><dd>${esc(l.research.business_summary)}</dd><dt>Likely cleaning need</dt><dd>${esc(l.research.likely_cleaning_need || "—")}</dd><dt>Personalization</dt><dd>${esc(l.research.personalization_note || "—")}</dd><dt>Outreach angle</dt><dd>${esc(l.research.outreach_angle || "—")}</dd><dt>Confidence</dt><dd>${l.research.confidence ?? "—"}%${l.researchBasis ? ` <span class="faint small">· based on ${esc(l.researchBasis)}</span>` : ""}</dd></dl>` : `<p class="muted small">Not researched yet. Click “Research with Claude” to research only this company.</p>`}</div>
+          <div class="ds"><h3>Activity</h3><ul class="timeline">${tl.map(([k, v, blocked]) => `<li class="${v ? "done" : "pend"}"><span class="k">${k}</span><span>${v || (blocked ? `<span class="faint">Not connected yet</span>` : `<span class="faint">—</span>`)}</span></li>`).join("")}</ul></div>
+        </div>
+        <div class="da">
+          <button class="btn approve" data-decide="Approved" data-id="${esc(l.id)}" ${S.canEdit && l.approval !== "Approved" && l.approval !== "Suppressed" ? "" : "disabled"}>Approve</button>
+          <button class="btn" data-decide="Rejected" data-id="${esc(l.id)}" ${S.canEdit && l.approval !== "Rejected" ? "" : "disabled"}>Reject</button>
+          <button class="btn" data-research="${esc(l.id)}" ${S.canEdit && !busy ? "" : "disabled"}>${busy ? "Researching…" : l.research ? "Research again" : "Research with Claude"}</button>
+          <button class="btn danger" data-suppress="${esc(l.id)}" ${S.canEdit && l.approval !== "Suppressed" ? "" : "disabled"}>Suppress</button>
+          <button class="btn" disabled title="Connect a sender first">Add to Campaign</button>
+          ${l.website ? `<a class="btn" href="${esc(l.website)}" target="_blank" rel="noreferrer">Open Website ↗</a>` : `<button class="btn" disabled>Open Website</button>`}
+          ${c?.linkedin ? `<a class="btn" href="${esc(c.linkedin)}" target="_blank" rel="noreferrer">Open LinkedIn ↗</a>` : `<button class="btn" disabled>Open LinkedIn</button>`}
+        </div>
+      </aside>`;
+  }
+
+  function render() {
+    const nav = navHtml();
+    document.getElementById("nav").innerHTML = nav;
+    document.getElementById("mnav").innerHTML = nav;
+    document.getElementById("status").innerHTML = statusHtml();
+    const v = document.getElementById("view");
+    if (S.error) { v.innerHTML = `<div class="head"><h1>R&amp;S Lead OS</h1></div><div class="notice warn"><div><b>Live data isn't available in this view.</b>${esc(S.error)} Open the dashboard on claude.ai while signed in to your R&amp;S account.</div></div>`; return; }
+    if (!S.loaded) { v.innerHTML = `<div class="head"><div><h1>Dashboard</h1><p class="muted">Loading leads, approvals and infrastructure from the live database…</p></div></div><div class="panel"><div class="empty"><b>Connecting to the R&amp;S lead database</b>Leads, the approval queue and mailbox health appear here in a moment.</div></div>`; return; }
+    if (!S.leads.length && !["infra", "find"].includes(S.tab)) { v.innerHTML = `<div class="head"><h1>Dashboard</h1></div><div class="panel"><div class="empty"><b>No leads yet</b>Ask Claude to run a Getlead search; results appear here automatically.</div></div>`; return; }
+    v.innerHTML = ({ overview, find: findView, queue, leads, infra, activity })[S.tab]();
+    drawer();
+  }
+
+  async function decide(id, status) {
+    if (!db || !S.canEdit) return;
+    const l = S.leads.find(x => x.id === id); if (!l) return;
+    const prev = l.approval;
+    l.approval = status; l.decidedAt = new Date().toISOString(); render();
+    try {
+      await db.doc("leads/" + id).update({ approval: status, decidedAt: l.decidedAt, decidedVia: "dashboard" });
+      toast(`${l.company}: ${status === "Needs Review" ? "moved back to review" : status.toLowerCase()}`);
+    } catch (e) { l.approval = prev; render(); toast(e?.code === "invalid_argument" ? "You don't have permission to change this." : "Couldn't save — try again."); }
+  }
+  async function requestResearch(id) {
+    if (!db || !S.canEdit) return;
+    try { await db.doc("leads/" + id).update({ researchRequested: true }); toast("Research requested — Claude picks it up on the next sync."); }
+    catch (e) { toast("Couldn't save — try again."); }
+  }
+
+  document.addEventListener("click", e => {
+    const t = e.target.closest("button, [data-close]"); if (!t) return;
+    if (t.dataset.tab) { S.tab = t.dataset.tab; try { localStorage.setItem("rs-tab", S.tab); } catch (x) {} window.scrollTo(0, 0); render(); return; }
+    if (t.dataset.go) { S.tab = t.dataset.go; if (t.dataset.qstatus) S.qStatus = t.dataset.qstatus; render(); return; }
+    if (t.dataset.qstatus) { S.qStatus = t.dataset.qstatus; S.qFocus = 0; render(); return; }
+    if (t.dataset.open) { S.open = t.dataset.open; drawer(); return; }
+    if (t.hasAttribute("data-close")) { S.open = null; drawer(); return; }
+    if (t.dataset.decide) { decide(t.dataset.id, t.dataset.decide); return; }
+    if (t.dataset.research) { researchLead(t.dataset.research); return; }
+    if (t.dataset.suppress) { const l = S.leads.find(x => x.id === t.dataset.suppress); confirmAction("Suppress this lead?", `${l?.company || "This company"} will never be contacted. You can move it back to review later.`, "Suppress", () => decide(t.dataset.suppress, "Suppressed")); return; }
+    if (t.dataset.modal) { const m = S.confirm; S.confirm = null; renderModal(); if (t.dataset.modal === "ok" && m?.fn) m.fn(); return; }
+    if (t.dataset.act) { const [k, val] = t.dataset.act.split(":"); if (k === "go") { S.tab = val; window.scrollTo(0, 0); render(); } else if (k === "toggle") { S.showDns = !S.showDns; render(); } else if (k === "modal") { const m = railwayModal(); S.confirm = { title: m.title, html: m.body, fn: null }; renderModal(); } return; }
+    if (t.dataset.fchip) { const k = t.dataset.fchip, val = t.dataset.val; F[k] = F[k].includes(val) ? F[k].filter(x => x !== val) : [...F[k], val]; R.matches = null; render(); return; }
+    if (t.hasAttribute("data-addcity")) { const c = (document.getElementById("addCity")?.value || "").trim(); if (c && !F.cities.includes(c)) F.cities.push(c); F.addCity = ""; R.matches = null; render(); return; }
+    if (t.dataset.run === "count") { runCount(); return; }
+    if (t.dataset.run === "search") { runSearch(); return; }
+    if (t.id === "clearF") { S.typeF = S.bandF = S.apprF = S.q = ""; document.getElementById("q").value = ""; render(); }
+  });
+  document.addEventListener("change", e => {
+    if (["typeF", "bandF", "apprF"].includes(e.target.id)) { S[e.target.id] = e.target.value; render(); }
+    const fmap = { fVerified: "verified", fPhone: "phone", fSkip: "skipKnown" };
+    if (fmap[e.target.id]) { F[fmap[e.target.id]] = e.target.checked; R.matches = null; render(); }
+    if (e.target.id === "fCount") { F.count = Math.max(1, Math.min(300, Number(e.target.value) || 50)); render(); }
+    if (e.target.id === "fMin") { F.minScore = Math.max(0, Math.min(100, Number(e.target.value) || 0)); }
+    if (e.target.id === "addCity") F.addCity = e.target.value;
+  });
+  document.getElementById("q").addEventListener("input", e => { S.q = e.target.value; if (S.tab !== "leads") S.tab = "leads"; render(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && S.confirm) { S.confirm = null; renderModal(); return; }
+    if (e.key === "Escape" && S.open) { S.open = null; drawer(); return; }
+    if (S.tab !== "queue" || S.open || S.confirm || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+    const items = S.leads.filter(l => l.approval === S.qStatus).sort((a, b) => b.score - a.score);
+    const cur = items[S.qFocus]; const k = e.key.toLowerCase();
+    if (k === "j") { S.qFocus = Math.min(S.qFocus + 1, items.length - 1); render(); document.querySelector(".qcard.focus")?.scrollIntoView({ block: "nearest" }); }
+    else if (k === "k") { S.qFocus = Math.max(S.qFocus - 1, 0); render(); document.querySelector(".qcard.focus")?.scrollIntoView({ block: "nearest" }); }
+    else if (cur && k === "a" && S.qStatus !== "Approved") decide(cur.id, "Approved");
+    else if (cur && k === "r" && S.qStatus !== "Rejected") decide(cur.id, "Rejected");
+    else if (cur && k === "o") { S.open = cur.id; drawer(); }
+  });
+
+  render();
+
+  (async () => {
+    const [dbNs, user, mcpNs, sampleNs] = await Promise.all([window.claude?.use?.("db") ?? null, window.claude?.use?.("user") ?? null, window.claude?.use?.("mcp") ?? null, window.claude?.use?.("sample") ?? null]);
+    mcp = mcpNs; sample = sampleNs;
+    if (!dbNs) { S.error = "The live database isn't connected in this view."; render(); return; }
+    db = dbNs;
+    try { S.canEdit = user ? await user.canEdit() : false; } catch (e) { S.canEdit = false; }
+    const fail = e => { S.error = e?.code === "revoked" ? "Access to this dashboard changed." : "The live database stopped responding. Reload to reconnect."; render(); };
+    let pending = 4;
+    const ready = () => { if (--pending <= 0 && !S.loaded) { S.loaded = true; render(); } };
+    let first = { leads: true, infra: true, meta: true, out: true };
+    db.collection("leads").limit(1000).onSnapshot(snap => { S.leads = snap.docs.map(d => ({ id: d.id, ...d.data() })); if (first.leads) { first.leads = false; ready(); } else render(); }, fail);
+    db.collection("infra").onSnapshot(snap => { snap.docs.forEach(d => { if (d.id === "domains") S.domains = d.data(); if (d.id === "mailboxes") S.mailboxes = d.data(); }); if (first.infra) { first.infra = false; ready(); } else render(); }, fail);
+    db.doc("meta/summary").onSnapshot(d => { S.meta = d.exists ? d.data() : null; if (first.meta) { first.meta = false; ready(); } else render(); }, fail);
+    db.doc("meta/system").onSnapshot(d => { S.system = d.exists ? d.data() : null; render(); }, () => {});
+    db.doc("meta/outreach").onSnapshot(d => { S.outreach = d.exists ? d.data() : null; if (first.out) { first.out = false; ready(); } else render(); }, fail);
+  })();
+})();
+</script>
