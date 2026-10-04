@@ -55,7 +55,15 @@ function yearOf(v: string | null) {
   return Number.isFinite(y) && y > 0 ? y : null;
 }
 
-export function mapGetleadRow(row: GetleadRow): ProspectInput | null {
+/** "Work Email" → "work_email": the REST API may key rows by display label instead of canonical name. */
+const canonicalKey = (k: string) => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+export function mapGetleadRow(input: GetleadRow): ProspectInput | null {
+  const row: GetleadRow = { ...input };
+  for (const [k, v] of Object.entries(input)) {
+    const ck = canonicalKey(k) as keyof GetleadRow;
+    if (row[ck] === undefined) row[ck] = v;
+  }
   const companyName = pick(row, "company_name", "Company Name");
   if (!companyName) return null; // a contact without an employer is not a facility lead
   const naicsCodes = (s(row["NAICS Industry Code"]) || "").split(/[;,]/).map((x) => x.trim()).filter(Boolean);
@@ -168,12 +176,20 @@ async function call<T>(pathEnv: string, fallbackPath: string, body: unknown): Pr
   return JSON.parse(text) as T;
 }
 
+/**
+ * The REST API has no count route (/api/v1/contacts/count is a 404), so unless GETLEAD_COUNT_PATH
+ * names one, count with a 1-row search and read its total_available (1 credit).
+ */
 export async function getleadCount(filters: Record<string, unknown>) {
-  return call<{ total_matching: number }>("GETLEAD_COUNT_PATH", "/api/v1/contacts/count", toGetleadQuery(filters));
+  if (process.env.GETLEAD_COUNT_PATH) {
+    return call<{ total_matching: number }>("GETLEAD_COUNT_PATH", "", toGetleadQuery(filters));
+  }
+  const page = await getleadSearch(filters, 1);
+  return { total_matching: page.total_available ?? page.contacts.length };
 }
 
 export async function getleadSearch(filters: Record<string, unknown>, limit: number, offset = 0) {
-  return call<{ contacts: GetleadRow[]; has_more?: boolean; next_offset?: number; query_credits_used?: number }>(
+  return call<{ contacts: GetleadRow[]; total_available?: number; has_more?: boolean; next_offset?: number; query_credits_used?: number }>(
     "GETLEAD_SEARCH_PATH",
     "/api/v1/contacts/search",
     { ...toGetleadQuery(filters), limit: Math.min(100, limit), offset, columns: GETLEAD_COLUMNS },

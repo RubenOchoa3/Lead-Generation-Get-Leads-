@@ -74,6 +74,14 @@ describe("getlead mapping + scoring", () => {
     assert.equal(p.contact?.emailStatus, "VALID");
     assert.equal(classifyBusiness(p.company.naicsCodes, p.company.industry), "Dental office");
   });
+  it("maps rows keyed by current display labels", () => {
+    const p = mapGetleadRow({ "Company Name": "Label Co", "Work Email": "a@label.example", "Email Status": "VALID",
+      "Current Title": "Property Manager", "Main Industry": "Real Estate", "Contact State": "California" } as never)!;
+    assert.equal(p.contact?.email, "a@label.example");
+    assert.equal(p.contact?.title, "Property Manager");
+    assert.equal(p.company.industry, "Real Estate");
+    assert.equal(p.company.state, "California");
+  });
   it("translates older saved filters to current GetLeads parameters", () => {
     assert.deepEqual(toGetleadQuery({ office_states: ["California"], office_cities: ["Fresno"], naics_codes: ["6212"], job_titles: ["Owner"] }),
       { states: ["California"], cities: ["Fresno"], job_titles: ["Owner"] });

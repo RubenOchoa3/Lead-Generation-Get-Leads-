@@ -33,9 +33,14 @@ export async function POST(req: Request) {
     let offset = 0;
     while (total.received < input.requestedCount) {
       await setStage(db, runId, "Searching", `offset ${offset}`);
+      const t0 = Date.now();
       const page = await getleadSearch(input.filters, Math.min(100, input.requestedCount - total.received), offset);
       credits += page.query_credits_used ?? 0;
       const prospects = page.contacts.map(mapGetleadRow).filter((p): p is NonNullable<typeof p> => p !== null);
+      // Field names only (no contact data) so a provider format change shows up in the logs.
+      console.log(`[getlead] run ${runId} offset ${offset}: ${page.contacts.length} rows (${prospects.length} with a company) in ${Date.now() - t0}ms; ` +
+        `with email ${prospects.filter((p) => p.contact?.email).length}, with title ${prospects.filter((p) => p.contact?.title).length}; ` +
+        `keys: ${Object.keys(page.contacts[0] ?? {}).join(",")}`);
       await setStage(db, runId, "Deduplicating");
       const s = await tx((c) => ingestBatch(c, prospects, { queueThreshold: input.queueThreshold, requireVerifiedEmail: input.requireVerifiedEmail, runId, query: input.filters }));
       for (const k of Object.keys(total) as (keyof typeof total)[]) {
@@ -46,6 +51,7 @@ export async function POST(req: Request) {
       offset = page.next_offset ?? offset + page.contacts.length;
     }
     await finishRun(db, runId, total, { usage: { getlead_credits: credits } });
+    console.log(`[getlead] run ${runId} done: ${JSON.stringify({ ...total, errors: total.errors.length })}`);
     return NextResponse.json({ runId, summary: total });
   } catch (e) {
     await failRun(db, runId, String((e as Error).message ?? e));
