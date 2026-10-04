@@ -32,6 +32,8 @@ export default function SettingsForm({ initial }: { initial: S }) {
       <section className="panel"><div className="panel-head"><h2>Schedule</h2><button className="btn sm" onClick={() => save("schedule")}>Save</button></div><div className="panel-body" style={{ display: "grid", gap: 10 }}>
         <label>Daily Lead Engine time<input value={s.schedule?.daily_lead_engine ?? ""} onChange={(e) => set("schedule", "daily_lead_engine", e.target.value)} /></label>
         <label className="check"><input type="checkbox" checked={!!s.schedule?.enabled} onChange={(e) => set("schedule", "enabled", e.target.checked)} />Enable daily engine (finds &amp; queues leads only — never sends)</label>
+        <label>Max new leads per saved search per night<input type="number" min={1} max={500} value={s.schedule?.max_per_search ?? 25} onChange={(e) => set("schedule", "max_per_search", Number(e.target.value))} /></label>
+        <p className="small faint">Runs every saved search marked &ldquo;Run nightly&rdquo; on Find Leads, around 5&nbsp;AM Pacific. New leads are waiting in the Approval Queue when you start the day.</p>
         {msg && <p className="small" role="status">{msg}</p>}
       </div></section>
     </div>

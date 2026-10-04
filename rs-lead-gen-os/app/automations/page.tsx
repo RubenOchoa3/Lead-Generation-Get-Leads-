@@ -5,7 +5,7 @@ import { getleadConfigured } from "@/lib/providers/getlead";
 export const dynamic = "force-dynamic";
 
 const CARDS = [
-  { type: "daily_lead_engine", name: "Daily Lead Engine", note: "Scheduled Getlead search → dedupe → score → queue. Off until the pilot is reviewed and the server Getlead key is added." },
+  { type: "daily_lead_engine", name: "Daily Lead Engine", note: "Nightly: runs saved searches marked “Run nightly” → dedupe → score → queue. Turn on in Settings → Schedule." },
   { type: "getlead_import", name: "Getlead Sync / Import", note: "Imports from Claude's Getlead MCP pulls or CSV exports." },
   { type: "manual_search", name: "Manual Getlead search", note: "Get Leads button on Find Leads (needs server Getlead key)." },
   { type: "inboxkit_sync", name: "InboxKit Sync", note: "Domains + mailboxes snapshot." },
@@ -30,7 +30,7 @@ export default async function Automations() {
                 <p className="small muted" style={{ marginBottom: 10 }}>{c.note}</p>
                 <dl className="kv small">
                   <dt>Last run</dt><dd>{r ? new Date(r.started_at).toLocaleString() : "—"}</dd>
-                  <dt>Next run</dt><dd>{c.type === "daily_lead_engine" ? "Disabled" : "On demand"}</dd>
+                  <dt>Next run</dt><dd>{c.type === "daily_lead_engine" ? "Nightly ~5 AM Pacific (if enabled in Settings)" : "On demand"}</dd>
                   <dt>Duration</dt><dd>{dur !== null ? `${dur}s` : "—"}</dd>
                   <dt>Output</dt><dd>{r ? `${r.unique_businesses} new · ${r.duplicates_removed} dupes · ${r.queued} queued` : "—"}</dd>
                   <dt>Errors</dt><dd>{r?.error_summary ? <span style={{ color: "var(--danger)" }}>{String(r.error_summary).slice(0, 140)}</span> : r ? "None" : "—"}</dd>

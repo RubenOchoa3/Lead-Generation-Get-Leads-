@@ -35,5 +35,3 @@ export const US_STATES = [
   "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia",
   "Washington", "West Virginia", "Wisconsin", "Wyoming",
 ];
-/** "Newly opened" = founded this year or the two before (GetLeads founded_year_min). */
-export const NEW_BUSINESS_YEARS = 2;

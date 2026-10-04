@@ -4,6 +4,7 @@ import { scoreProspect, scoreBand, titleRank, isPreferredDecisionMaker } from ".
 import { classifyBusiness } from "../lib/classify";
 import { normalizeCompanyName, normalizeDomain, normalizeAddress, normalizePhone } from "../lib/dedupe";
 import { mapGetleadRow, toGetleadQuery } from "../lib/providers/getlead";
+import { buildGetleadFilters } from "../lib/searchFilters";
 import rows from "./fixtures/getlead-sample.json" with { type: "json" };
 
 describe("titles", () => {
@@ -81,6 +82,12 @@ describe("getlead mapping + scoring", () => {
     assert.equal(p.contact?.title, "Property Manager");
     assert.equal(p.company.industry, "Real Estate");
     assert.equal(p.company.state, "California");
+  });
+  it("builds GetLeads filters from a saved search (whole state when no cities)", () => {
+    const f = buildGetleadFilters({ country: "United States", state: "California", cities: [], categories: ["Dental offices"], titles: ["Owner"], verified: true });
+    assert.deepEqual(f, { countries: ["United States"], states: ["California"], industries: ["Dentists"], job_titles: ["Owner"], email_status: ["VALID"] });
+    assert.deepEqual(buildGetleadFilters({ state: "All states", cities: ["Fresno"], categories: [], verified: false }).cities, ["Fresno"]);
+    assert.equal("states" in buildGetleadFilters({ state: "All states" }), false);
   });
   it("translates older saved filters to current GetLeads parameters", () => {
     assert.deepEqual(toGetleadQuery({ office_states: ["California"], office_cities: ["Fresno"], naics_codes: ["6212"], job_titles: ["Owner"] }),

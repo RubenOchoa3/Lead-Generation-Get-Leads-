@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { TARGET_CATEGORIES, DEFAULT_CITIES, DEFAULT_TITLES, COUNTRIES, US_STATES, ALL_STATES, NEW_BUSINESS_YEARS } from "@/lib/targets";
+import { TARGET_CATEGORIES, DEFAULT_CITIES, DEFAULT_TITLES, COUNTRIES, US_STATES, ALL_STATES } from "@/lib/targets";
+import { buildGetleadFilters } from "@/lib/searchFilters";
 
 type Summary = Record<string, number | string[]>;
 const STAGES = ["Searching", "Deduplicating", "Qualifying", "Decision Makers", "Verifying", "Scoring", "Saving", "Queueing"];
@@ -36,8 +37,6 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
   const [country, setCountry] = useState("United States");
   const [state, setState] = useState("California");
   const [cities, setCities] = useState<string[]>(["Bakersfield"]);
-  const [anyType, setAnyType] = useState(false);
-  const [newOnly, setNewOnly] = useState(false);
   const [extraCity, setExtraCity] = useState("");
   const [categories, setCategories] = useState<string[]>(TARGET_CATEGORIES.filter((c) => c.default).map((c) => c.label));
   const [titles, setTitles] = useState<string[]>(DEFAULT_TITLES);
@@ -46,6 +45,7 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
   const [minScore, setMinScore] = useState(65);
   const [count, setCount] = useState(100);
   const [addToQueue, setAddToQueue] = useState(true);
+  const [nightly, setNightly] = useState(false);
   const [busy, setBusy] = useState<null | "count" | "run" | "import" | "save">(null);
   const [matches, setMatches] = useState<number | null>(null);
   const [error, setError] = useState<{ msg: string; notConfigured?: boolean } | null>(null);
@@ -53,18 +53,8 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
   const [savedList, setSavedList] = useState(saved);
   const [copied, setCopied] = useState(false);
 
-  const filters = useMemo(() => ({
-    countries: [country],
-    ...(country === "United States" && state !== ALL_STATES ? { states: [state] } : {}),
-    ...(cities.length ? { cities } : {}),
-    ...(anyType
-      ? { exclude_industries: ["Janitorial Services"] }
-      : { industries: [...new Set(TARGET_CATEGORIES.filter((c) => categories.includes(c.label)).flatMap((c) => c.industries))] }),
-    ...(newOnly ? { founded_year_min: new Date().getFullYear() - NEW_BUSINESS_YEARS } : {}),
-    job_titles: titles,
-    ...(verified ? { email_status: ["VALID"] } : {}),
-    ...(phone ? { require_phone: true } : {}),
-  }), [country, state, cities, anyType, newOnly, categories, titles, verified, phone]);
+  const filters = useMemo(() => buildGetleadFilters({ country, state, cities, categories, titles, verified, phone }),
+    [country, state, cities, categories, titles, verified, phone]);
   const where = cities.length ? cities.join(", ") : country === "United States" ? (state === ALL_STATES ? "All US states" : `All of ${state}`) : country;
 
   async function preview() {
@@ -93,15 +83,15 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
     setBusy(null);
   }
   async function saveSearch() {
-    const name = window.prompt("Name this search", `${where} · ${anyType ? "all types" : `${categories.length} categories`}${newOnly ? " · new businesses" : ""}`);
+    const name = window.prompt("Name this search", `${where} · ${categories.length} categories${nightly ? " · nightly" : ""}`);
     if (!name) return;
     setBusy("save");
-    const next = [...savedList.filter((s) => s.name !== name), { name, filters: { country, state, cities, anyType, newOnly, categories, titles, verified, phone, minScore, count } }];
+    const next = [...savedList.filter((s) => s.name !== name), { name, filters: { country, state, cities, categories, titles, verified, phone, minScore, count, nightly } }];
     const res = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "saved_searches", value: next }) });
     setBusy(null); if (res.ok) setSavedList(next);
   }
   function loadSearch(s: { filters: any }) {
-    const f = s.filters; setCountry(f.country ?? "United States"); setState(f.state ?? "California"); setAnyType(!!f.anyType); setNewOnly(!!f.newOnly); setCities(f.cities ?? []); setCategories(f.categories); setTitles(f.titles); setVerified(f.verified); setPhone(f.phone); setMinScore(f.minScore); setCount(f.count);
+    const f = s.filters; setCountry(f.country ?? "United States"); setState(f.state ?? "California"); setNightly(!!f.nightly); setCities(f.cities ?? []); setCategories(f.categories); setTitles(f.titles); setVerified(f.verified); setPhone(f.phone); setMinScore(f.minScore); setCount(f.count);
   }
 
   const n = (k: string) => (summary ? Number(summary[k] ?? 0) : 0);
@@ -145,9 +135,7 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
           </div>
           <div className="filter-section">
             <h3>Business type</h3>
-            <label className="check"><input type="checkbox" checked={anyType} onChange={(e) => setAnyType(e.target.checked)} />All business types (any industry except cleaning companies)</label>
-            {!anyType && <Chips options={TARGET_CATEGORIES.map((c) => c.label)} value={categories} onChange={setCategories} />}
-            <label className="check"><input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} />Only newly opened businesses (founded {new Date().getFullYear() - NEW_BUSINESS_YEARS} or later)</label>
+            <Chips options={TARGET_CATEGORIES.map((c) => c.label)} value={categories} onChange={setCategories} />
           </div>
           <div className="filter-section">
             <h3>Decision makers <span className="faint">(priority order)</span></h3>
@@ -169,9 +157,10 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
           <section className="panel">
             <div className="panel-body" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
               <label>Requested leads<input type="number" min={1} max={500} value={count} onChange={(e) => setCount(Number(e.target.value))} style={{ width: 120 }} /></label>
-              <button className="btn" disabled={!!busy || (!anyType && !categories.length)} onClick={preview}>{busy === "count" ? "Counting…" : "Preview match count"}</button>
-              <button className="btn primary" disabled={!!busy || (!anyType && !categories.length)} onClick={run}>{busy === "run" ? "Running…" : "Get Leads"}</button>
+              <button className="btn" disabled={!!busy || !categories.length} onClick={preview}>{busy === "count" ? "Counting…" : "Preview match count"}</button>
+              <button className="btn primary" disabled={!!busy || !categories.length} onClick={run}>{busy === "run" ? "Running…" : "Get Leads"}</button>
               <button className="btn" disabled={!!busy} onClick={saveSearch}>Save search</button>
+              <label className="check" title="Saved searches marked nightly run automatically overnight (Settings → Schedule) and put new leads in the Approval Queue."><input type="checkbox" checked={nightly} onChange={(e) => setNightly(e.target.checked)} />Run nightly when saved</label>
               <label className="btn" style={{ flexDirection: "row", color: "var(--ink)", fontSize: 13, fontWeight: 600 }}>
                 {busy === "import" ? "Importing…" : "Import Getlead CSV"}
                 <input type="file" accept=".csv,.json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ""; }} />

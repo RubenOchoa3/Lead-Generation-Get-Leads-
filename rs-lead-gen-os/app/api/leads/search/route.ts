@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db, tx } from "@/lib/db";
-import { getleadSearch, getleadConfigured, mapGetleadRow, GetleadNotConfiguredError } from "@/lib/providers/getlead";
-import { ingestBatch, emptySummary } from "@/lib/ingest";
-import { startRun, setStage, finishRun, failRun, RunAlreadyActiveError } from "@/lib/runs";
+import { getleadConfigured, GetleadNotConfiguredError } from "@/lib/providers/getlead";
+import { RunAlreadyActiveError } from "@/lib/runs";
+import { runLeadSearch } from "@/lib/leadRun";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -23,40 +22,11 @@ export async function POST(req: Request) {
   let input: z.infer<typeof schema>;
   try { input = schema.parse(await req.json()); } catch (e) { return NextResponse.json({ error: String(e) }, { status: 400 }); }
 
-  let runId: string;
-  try { runId = await startRun(db, "manual_search", "manual", input); }
-  catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: e instanceof RunAlreadyActiveError ? 409 : 500 }); }
-
-  const total = emptySummary();
-  let credits = 0;
   try {
-    let offset = 0;
-    while (total.received < input.requestedCount) {
-      await setStage(db, runId, "Searching", `offset ${offset}`);
-      const t0 = Date.now();
-      const page = await getleadSearch(input.filters, Math.min(100, input.requestedCount - total.received), offset);
-      credits += page.query_credits_used ?? 0;
-      const prospects = page.contacts.map(mapGetleadRow).filter((p): p is NonNullable<typeof p> => p !== null);
-      // Field names only (no contact data) so a provider format change shows up in the logs.
-      console.log(`[getlead] run ${runId} offset ${offset}: ${page.contacts.length} rows (${prospects.length} with a company) in ${Date.now() - t0}ms; ` +
-        `with email ${prospects.filter((p) => p.contact?.email).length}, with title ${prospects.filter((p) => p.contact?.title).length}; ` +
-        `keys: ${Object.keys(page.contacts[0] ?? {}).join(",")}`);
-      await setStage(db, runId, "Deduplicating");
-      const t1 = Date.now();
-      const s = await tx((c) => ingestBatch(c, prospects, { queueThreshold: input.queueThreshold, requireVerifiedEmail: input.requireVerifiedEmail, runId, query: input.filters }));
-      for (const k of Object.keys(total) as (keyof typeof total)[]) {
-        if (k === "errors") total.errors.push(...s.errors); else (total[k] as number) += s[k] as number;
-      }
-      console.log(`[getlead] run ${runId} offset ${offset}: saved and scored in ${Date.now() - t1}ms`);
-      total.received += page.contacts.length - prospects.length; // count rows without a company too
-      if (!page.has_more || !page.contacts.length) break;
-      offset = page.next_offset ?? offset + page.contacts.length;
-    }
-    await finishRun(db, runId, total, { usage: { getlead_credits: credits } });
-    console.log(`[getlead] run ${runId} done: ${JSON.stringify({ ...total, errors: total.errors.length })}`);
-    return NextResponse.json({ runId, summary: total });
+    return NextResponse.json(await runLeadSearch(input, "manual_search", "manual"));
   } catch (e) {
-    await failRun(db, runId, String((e as Error).message ?? e));
-    return NextResponse.json({ runId, error: String((e as Error).message ?? e) }, { status: 502 });
+    const err = e as Error & { runId?: string };
+    if (err instanceof RunAlreadyActiveError) return NextResponse.json({ error: err.message }, { status: 409 });
+    return NextResponse.json({ runId: err.runId, error: String(err.message ?? e) }, { status: err.runId ? 502 : 500 });
   }
 }
