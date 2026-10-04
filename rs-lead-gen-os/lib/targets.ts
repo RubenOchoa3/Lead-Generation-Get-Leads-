@@ -24,3 +24,16 @@ export const TARGET_CATEGORIES: Array<{ label: string; naics: string[]; industri
 
 export const DEFAULT_CITIES = ["Bakersfield", "Fresno", "Visalia", "Delano", "Shafter", "Wasco", "Tulare", "Hanford"];
 export const DEFAULT_TITLES = ["Facilities Manager", "Director of Facilities", "Property Manager", "Building Manager", "Operations Manager", "Director of Operations", "Office Manager", "General Manager", "Asset Manager", "Owner", "Practice Manager"];
+
+export const COUNTRIES = ["United States", "Canada", "Mexico"];
+export const ALL_STATES = "All states";
+export const US_STATES = [
+  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "District of Columbia",
+  "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine",
+  "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+  "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+  "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia",
+  "Washington", "West Virginia", "Wisconsin", "Wyoming",
+];
+/** "Newly opened" = founded this year or the two before (GetLeads founded_year_min). */
+export const NEW_BUSINESS_YEARS = 2;

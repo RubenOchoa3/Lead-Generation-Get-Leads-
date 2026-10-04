@@ -123,8 +123,10 @@ export function mapGetleadRow(input: GetleadRow): ProspectInput | null {
 
 /** Filters the Find Leads page sends. Names are GetLeads' contact search parameters. */
 export type GetleadFilters = {
+  countries?: string[];
   states?: string[];
   cities?: string[];
+  founded_year_min?: number;
   industries?: string[];
   job_titles?: string[];
   email_status?: string[];
@@ -184,14 +186,19 @@ export async function getleadCount(filters: Record<string, unknown>) {
   if (process.env.GETLEAD_COUNT_PATH) {
     return call<{ total_matching: number }>("GETLEAD_COUNT_PATH", "", toGetleadQuery(filters));
   }
-  const page = await getleadSearch(filters, 1);
+  // Keep GetLeads' default ranking here: with it off, total_available is only a lower bound.
+  const page = await getleadSearch(filters, 1, 0, { exactTotal: true });
   return { total_matching: page.total_available ?? page.contacts.length };
 }
 
-export async function getleadSearch(filters: Record<string, unknown>, limit: number, offset = 0) {
+/**
+ * Lead runs turn off GetLeads' "domain or headline first" ranking: it roughly halves the search time
+ * and adds nothing here, since runs already filter to verified emails and re-score every row.
+ */
+export async function getleadSearch(filters: Record<string, unknown>, limit: number, offset = 0, opts: { exactTotal?: boolean } = {}) {
   return call<{ contacts: GetleadRow[]; total_available?: number; has_more?: boolean; next_offset?: number; query_credits_used?: number }>(
     "GETLEAD_SEARCH_PATH",
     "/api/v1/contacts/search",
-    { ...toGetleadQuery(filters), limit: Math.min(100, limit), offset, columns: GETLEAD_COLUMNS },
+    { ...toGetleadQuery(filters), limit: Math.min(100, limit), offset, columns: GETLEAD_COLUMNS, ...(opts.exactTotal ? {} : { require_domain_or_headline: false }) },
   );
 }

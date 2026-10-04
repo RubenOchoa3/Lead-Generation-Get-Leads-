@@ -42,10 +42,12 @@ export async function POST(req: Request) {
         `with email ${prospects.filter((p) => p.contact?.email).length}, with title ${prospects.filter((p) => p.contact?.title).length}; ` +
         `keys: ${Object.keys(page.contacts[0] ?? {}).join(",")}`);
       await setStage(db, runId, "Deduplicating");
+      const t1 = Date.now();
       const s = await tx((c) => ingestBatch(c, prospects, { queueThreshold: input.queueThreshold, requireVerifiedEmail: input.requireVerifiedEmail, runId, query: input.filters }));
       for (const k of Object.keys(total) as (keyof typeof total)[]) {
         if (k === "errors") total.errors.push(...s.errors); else (total[k] as number) += s[k] as number;
       }
+      console.log(`[getlead] run ${runId} offset ${offset}: saved and scored in ${Date.now() - t1}ms`);
       total.received += page.contacts.length - prospects.length; // count rows without a company too
       if (!page.has_more || !page.contacts.length) break;
       offset = page.next_offset ?? offset + page.contacts.length;

@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { TARGET_CATEGORIES, DEFAULT_CITIES, DEFAULT_TITLES } from "@/lib/targets";
+import { TARGET_CATEGORIES, DEFAULT_CITIES, DEFAULT_TITLES, COUNTRIES, US_STATES, ALL_STATES, NEW_BUSINESS_YEARS } from "@/lib/targets";
 
 type Summary = Record<string, number | string[]>;
 const STAGES = ["Searching", "Deduplicating", "Qualifying", "Decision Makers", "Verifying", "Scoring", "Saving", "Queueing"];
@@ -33,7 +33,11 @@ function Chips({ options, value, onChange }: { options: string[]; value: string[
 }
 
 export default function FindLeads({ serverApi, saved }: { serverApi: boolean; saved: Array<{ name: string; filters: any }> }) {
+  const [country, setCountry] = useState("United States");
+  const [state, setState] = useState("California");
   const [cities, setCities] = useState<string[]>(["Bakersfield"]);
+  const [anyType, setAnyType] = useState(false);
+  const [newOnly, setNewOnly] = useState(false);
   const [extraCity, setExtraCity] = useState("");
   const [categories, setCategories] = useState<string[]>(TARGET_CATEGORIES.filter((c) => c.default).map((c) => c.label));
   const [titles, setTitles] = useState<string[]>(DEFAULT_TITLES);
@@ -50,13 +54,18 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
   const [copied, setCopied] = useState(false);
 
   const filters = useMemo(() => ({
-    states: ["California"],
-    cities,
-    industries: [...new Set(TARGET_CATEGORIES.filter((c) => categories.includes(c.label)).flatMap((c) => c.industries))],
+    countries: [country],
+    ...(country === "United States" && state !== ALL_STATES ? { states: [state] } : {}),
+    ...(cities.length ? { cities } : {}),
+    ...(anyType
+      ? { exclude_industries: ["Janitorial Services"] }
+      : { industries: [...new Set(TARGET_CATEGORIES.filter((c) => categories.includes(c.label)).flatMap((c) => c.industries))] }),
+    ...(newOnly ? { founded_year_min: new Date().getFullYear() - NEW_BUSINESS_YEARS } : {}),
     job_titles: titles,
     ...(verified ? { email_status: ["VALID"] } : {}),
     ...(phone ? { require_phone: true } : {}),
-  }), [cities, categories, titles, verified, phone]);
+  }), [country, state, cities, anyType, newOnly, categories, titles, verified, phone]);
+  const where = cities.length ? cities.join(", ") : country === "United States" ? (state === ALL_STATES ? "All US states" : `All of ${state}`) : country;
 
   async function preview() {
     setBusy("count"); setError(null); setMatches(null);
@@ -84,15 +93,15 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
     setBusy(null);
   }
   async function saveSearch() {
-    const name = window.prompt("Name this search", `${cities.join(", ")} · ${categories.length} categories`);
+    const name = window.prompt("Name this search", `${where} · ${anyType ? "all types" : `${categories.length} categories`}${newOnly ? " · new businesses" : ""}`);
     if (!name) return;
     setBusy("save");
-    const next = [...savedList.filter((s) => s.name !== name), { name, filters: { cities, categories, titles, verified, phone, minScore, count } }];
+    const next = [...savedList.filter((s) => s.name !== name), { name, filters: { country, state, cities, anyType, newOnly, categories, titles, verified, phone, minScore, count } }];
     const res = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "saved_searches", value: next }) });
     setBusy(null); if (res.ok) setSavedList(next);
   }
   function loadSearch(s: { filters: any }) {
-    const f = s.filters; setCities(f.cities); setCategories(f.categories); setTitles(f.titles); setVerified(f.verified); setPhone(f.phone); setMinScore(f.minScore); setCount(f.count);
+    const f = s.filters; setCountry(f.country ?? "United States"); setState(f.state ?? "California"); setAnyType(!!f.anyType); setNewOnly(!!f.newOnly); setCities(f.cities ?? []); setCategories(f.categories); setTitles(f.titles); setVerified(f.verified); setPhone(f.phone); setMinScore(f.minScore); setCount(f.count);
   }
 
   const n = (k: string) => (summary ? Number(summary[k] ?? 0) : 0);
@@ -100,7 +109,7 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
   return (
     <>
       <div className="page-head">
-        <div><h1>Find Leads</h1><p className="muted">Search Getlead for California facilities and their decision makers. Results are deduplicated, scored and queued for your review.</p></div>
+        <div><h1>Find Leads</h1><p className="muted">Search Getlead for facilities and their decision makers by country, state or city. Results are deduplicated, scored and queued for your review.</p></div>
         {savedList.length > 0 && (
           <select aria-label="Saved searches" onChange={(e) => { const s = savedList.find((x) => x.name === e.target.value); if (s) loadSearch(s); }} defaultValue="">
             <option value="" disabled>Saved searches…</option>{savedList.map((s) => <option key={s.name}>{s.name}</option>)}
@@ -119,8 +128,16 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
         <aside className="panel filters" aria-label="Search filters">
           <div className="filter-section">
             <h3>Location</h3>
-            <label>State<select value="California" disabled><option>California</option></select></label>
-            <Chips options={[...new Set([...DEFAULT_CITIES, ...cities])]} value={cities} onChange={setCities} />
+            <label>Country<select value={country} onChange={(e) => setCountry(e.target.value)}>{COUNTRIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+            {country === "United States" && (
+              <label>State<select value={state} onChange={(e) => { setState(e.target.value); if (e.target.value !== "California") setCities(cities.filter((c) => !DEFAULT_CITIES.includes(c))); }}>
+                <option>{ALL_STATES}</option>{US_STATES.map((st) => <option key={st}>{st}</option>)}
+              </select></label>
+            )}
+            <p className="small faint" style={{ margin: "2px 0 6px" }}>Cities are optional — pick none to search {country === "United States" && state !== ALL_STATES ? `all of ${state}` : "the whole area above"}.</p>
+            {country === "United States" && state === "California" && <Chips options={[...new Set([...DEFAULT_CITIES, ...cities])]} value={cities} onChange={setCities} />}
+            {!(country === "United States" && state === "California") && cities.length > 0 && <Chips options={cities} value={cities} onChange={setCities} />}
+            {cities.length > 0 && <button type="button" className="btn sm" onClick={() => setCities([])}>Clear cities (search whole {country === "United States" && state !== ALL_STATES ? "state" : "area"})</button>}
             <form style={{ display: "flex", gap: 6 }} onSubmit={(e) => { e.preventDefault(); const c = extraCity.trim(); if (c && !cities.includes(c)) setCities([...cities, c]); setExtraCity(""); }}>
               <input aria-label="Add city" placeholder="Add city…" value={extraCity} onChange={(e) => setExtraCity(e.target.value)} style={{ flex: 1 }} />
               <button className="btn sm" type="submit">Add</button>
@@ -128,7 +145,9 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
           </div>
           <div className="filter-section">
             <h3>Business type</h3>
-            <Chips options={TARGET_CATEGORIES.map((c) => c.label)} value={categories} onChange={setCategories} />
+            <label className="check"><input type="checkbox" checked={anyType} onChange={(e) => setAnyType(e.target.checked)} />All business types (any industry except cleaning companies)</label>
+            {!anyType && <Chips options={TARGET_CATEGORIES.map((c) => c.label)} value={categories} onChange={setCategories} />}
+            <label className="check"><input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} />Only newly opened businesses (founded {new Date().getFullYear() - NEW_BUSINESS_YEARS} or later)</label>
           </div>
           <div className="filter-section">
             <h3>Decision makers <span className="faint">(priority order)</span></h3>
@@ -150,8 +169,8 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
           <section className="panel">
             <div className="panel-body" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
               <label>Requested leads<input type="number" min={1} max={500} value={count} onChange={(e) => setCount(Number(e.target.value))} style={{ width: 120 }} /></label>
-              <button className="btn" disabled={!!busy || !cities.length} onClick={preview}>{busy === "count" ? "Counting…" : "Preview match count"}</button>
-              <button className="btn primary" disabled={!!busy || !cities.length || !categories.length} onClick={run}>{busy === "run" ? "Running…" : "Get Leads"}</button>
+              <button className="btn" disabled={!!busy || (!anyType && !categories.length)} onClick={preview}>{busy === "count" ? "Counting…" : "Preview match count"}</button>
+              <button className="btn primary" disabled={!!busy || (!anyType && !categories.length)} onClick={run}>{busy === "run" ? "Running…" : "Get Leads"}</button>
               <button className="btn" disabled={!!busy} onClick={saveSearch}>Save search</button>
               <label className="btn" style={{ flexDirection: "row", color: "var(--ink)", fontSize: 13, fontWeight: 600 }}>
                 {busy === "import" ? "Importing…" : "Import Getlead CSV"}
