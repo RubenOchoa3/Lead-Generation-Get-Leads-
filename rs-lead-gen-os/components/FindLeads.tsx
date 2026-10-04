@@ -50,9 +50,9 @@ export default function FindLeads({ serverApi, saved }: { serverApi: boolean; sa
   const [copied, setCopied] = useState(false);
 
   const filters = useMemo(() => ({
-    office_states: ["California"],
-    office_cities: cities,
-    naics_codes: [...new Set(TARGET_CATEGORIES.filter((c) => categories.includes(c.label)).flatMap((c) => c.naics))],
+    states: ["California"],
+    cities,
+    industries: [...new Set(TARGET_CATEGORIES.filter((c) => categories.includes(c.label)).flatMap((c) => c.industries))],
     job_titles: titles,
     ...(verified ? { email_status: ["VALID"] } : {}),
     ...(phone ? { require_phone: true } : {}),

@@ -53,8 +53,9 @@ const NAICS_RULES: Array<[string, BusinessType]> = [
 const INDUSTRY_RULES: Array<[RegExp, BusinessType]> = [
   [/janitorial|commercial cleaning|cleaning services/i, "Janitorial competitor"],
   [/facilities services/i, "Facilities management"],
-  [/dental/i, "Dental office"],
+  [/dental|dentist/i, "Dental office"],
   [/medical practices?|physician|chiropract|optometr/i, "Medical office"],
+  [/outpatient care|diagnostic laborator/i, "Clinic"],
   [/hospital|health care|healthcare|mental health/i, "Healthcare facility"],
   [/real estate|property/i, "Commercial real estate"],
   [/warehousing|storage/i, "Warehouse"],

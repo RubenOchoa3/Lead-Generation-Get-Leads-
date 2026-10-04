@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { scoreProspect, scoreBand, titleRank, isPreferredDecisionMaker } from "../lib/scoring";
 import { classifyBusiness } from "../lib/classify";
 import { normalizeCompanyName, normalizeDomain, normalizeAddress, normalizePhone } from "../lib/dedupe";
-import { mapGetleadRow } from "../lib/providers/getlead";
+import { mapGetleadRow, toGetleadQuery } from "../lib/providers/getlead";
 import rows from "./fixtures/getlead-sample.json" with { type: "json" };
 
 describe("titles", () => {
@@ -54,6 +54,30 @@ describe("getlead mapping + scoring", () => {
     assert.ok(p.contact?.emailVerifiedAt?.startsWith("2026-06-02"));
   });
   it("skips rows without a company", () => assert.equal(mapGetleadRow({ "Contact Full Name": "No Employer" }), null));
+  it("maps current GetLeads canonical columns", () => {
+    const p = mapGetleadRow({
+      full_name: "Gina Example", first_name: "Gina", last_name: "Example", current_title: "Office Manager",
+      seniority_level: "manager", work_email: "gina@valleydental.example", email_status: "VALID", mobile_phone: "",
+      linkedin_url: "https://www.linkedin.com/in/gina-example", company_name: "Valley Dental (fixture)",
+      company_domain: "valleydental.example", company_website: "valleydental.example",
+      current_employer_linkedin_url: "https://www.linkedin.com/company/valley-dental-fixture",
+      company_contact_info_json: '{"phone":"(661) 555-0101","email":null}', employee_count_range: "11 to 50",
+      main_industry: "Dentists", contact_city: "Bakersfield", contact_state: "California",
+      company_hq_city: "Fresno", company_founded_year: "1995-01-01T00:00:00.000Z",
+    })!;
+    assert.equal(p.company.domain, "valleydental.example");
+    assert.equal(p.company.phone, "(661) 555-0101");
+    assert.equal(p.company.linkedinUrl, "https://www.linkedin.com/company/valley-dental-fixture");
+    assert.equal(p.company.city, "Bakersfield");
+    assert.equal(p.company.foundedYear, 1995);
+    assert.equal(p.contact?.email, "gina@valleydental.example");
+    assert.equal(p.contact?.emailStatus, "VALID");
+    assert.equal(classifyBusiness(p.company.naicsCodes, p.company.industry), "Dental office");
+  });
+  it("translates older saved filters to current GetLeads parameters", () => {
+    assert.deepEqual(toGetleadQuery({ office_states: ["California"], office_cities: ["Fresno"], naics_codes: ["6212"], job_titles: ["Owner"] }),
+      { states: ["California"], cities: ["Fresno"], job_titles: ["Owner"] });
+  });
   it("scores transparently with reasons and bands", () => {
     const p = mapGetleadRow(rows[1] as never)!;
     const s = scoreProspect(p, classifyBusiness(p.company.naicsCodes, p.company.industry));
