@@ -51,3 +51,47 @@ export async function upsertInfrastructure(db: Db, domains: Rec[], mailboxes: Re
   }
   return { domains: d, mailboxes: m };
 }
+
+/** Instantly account status / warmup codes → labels shown on the Mailboxes page. */
+const ACCOUNT_STATUS: Record<number, string> = { 1: "active", 2: "paused", [-1]: "connection error", [-2]: "soft bounce error", [-3]: "sending error" };
+const WARMUP_STATUS: Record<number, string> = { 0: "Not warming", 1: "Warming", [-1]: "Warmup banned", [-2]: "Warmup spam folder", [-3]: "Warmup suspended" };
+
+type SenderAccount = { email: string; status: number; warmup_status: number; daily_limit?: number; stat_warmup_score?: number };
+type SenderCampaign = { name: string; email_list?: string[] };
+
+/**
+ * Refresh mailboxes from the sender (Instantly). The protected primary business domain is never
+ * listed as a sending mailbox. Domains get a row with their mailbox count; DNS fields are left
+ * untouched (they come only from an InboxKit snapshot).
+ */
+export async function syncMailboxesFromSender(db: Db, accounts: SenderAccount[], campaigns: SenderCampaign[]) {
+  let m = 0;
+  const perDomain = new Map<string, number>();
+  for (const a of accounts) {
+    const address = a.email.toLowerCase();
+    const domain = address.split("@")[1] ?? "";
+    if (!domain || ALWAYS_SUPPRESSED_DOMAINS.includes(domain)) continue;
+    const inCampaigns = campaigns.filter((c) => (c.email_list ?? []).map((e) => e.toLowerCase()).includes(address)).map((c) => c.name);
+    const score = a.stat_warmup_score;
+    const health = a.status !== 1 ? "Issue" : score == null || a.warmup_status !== 1 ? null : score >= 80 ? "Healthy" : "Warming up";
+    const warmup = WARMUP_STATUS[a.warmup_status] ?? String(a.warmup_status);
+    await db.query(
+      `insert into mailboxes (address, domain, provider, platform, status, warmup_status, health, daily_send_limit, sequencer, campaign, last_sync_at)
+       values ($1,$2,'InboxKit','GOOGLE',$3,$4,$5,$6,'Instantly',$7, now())
+       on conflict (address) do update set domain = excluded.domain, status = excluded.status, warmup_status = excluded.warmup_status,
+         health = excluded.health, daily_send_limit = excluded.daily_send_limit, sequencer = 'Instantly', campaign = excluded.campaign, last_sync_at = now()`,
+      [address, domain, ACCOUNT_STATUS[a.status] ?? String(a.status), score != null && a.warmup_status === 1 ? `${warmup} (score ${score})` : warmup,
+        health, a.daily_limit ?? null, inCampaigns.join(", ") || null],
+    );
+    perDomain.set(domain, (perDomain.get(domain) ?? 0) + 1);
+    m++;
+  }
+  for (const [domain, count] of perDomain) {
+    await db.query(
+      `insert into domains (domain, provider, status, mailbox_count, last_sync_at) values ($1, 'InboxKit', 'active', $2, now())
+       on conflict (domain) do update set mailbox_count = excluded.mailbox_count, last_sync_at = now()`,
+      [domain, count],
+    );
+  }
+  return { mailboxes: m, domains: perDomain.size };
+}

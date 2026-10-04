@@ -16,6 +16,8 @@ export const INSTANTLY_STATUS: Record<number, string> = { 0: "Draft", 1: "Active
 
 export type InstantlyCampaign = { id: string; name: string; status: number; email_list?: string[]; daily_limit?: number };
 
+export type InstantlyAccount = { email: string; status: number; warmup_status: number; daily_limit?: number; stat_warmup_score?: number; provider_code?: number };
+
 export type InstantlyLead = {
   email: string;
   first_name?: string;
@@ -29,6 +31,7 @@ export type InstantlyLead = {
 
 export interface SenderClient {
   listCampaigns(): Promise<InstantlyCampaign[]>;
+  listAccounts(): Promise<InstantlyAccount[]>;
   addLeads(campaignId: string, leads: InstantlyLead[]): Promise<{ uploaded: number; skipped: number; raw: unknown }>;
 }
 
@@ -49,6 +52,18 @@ export const instantly: SenderClient = {
   async listCampaigns() {
     const r = await call<{ items: InstantlyCampaign[] }>("/api/v2/campaigns?limit=100");
     return r.items ?? [];
+  },
+  async listAccounts() {
+    const all: InstantlyAccount[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < 20; page++) {
+      const r = await call<{ items: InstantlyAccount[]; next_starting_after?: string }>(
+        `/api/v2/accounts?limit=100${after ? `&starting_after=${encodeURIComponent(after)}` : ""}`);
+      all.push(...(r.items ?? []));
+      if (!r.next_starting_after || !r.items?.length || r.items.length < 100) break;
+      after = r.next_starting_after;
+    }
+    return all;
   },
   async addLeads(campaignId, leads) {
     const r = await call<Record<string, unknown>>("/api/v2/leads/add", {
