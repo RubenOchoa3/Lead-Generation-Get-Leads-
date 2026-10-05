@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Db } from "@/lib/db";
+import { notifyOwner } from "@/lib/notify";
 
 /** "no thanks" / unsubscribe-style replies honour the opt-out line in every email. */
 export const OPT_OUT = /\b(no thanks|no thank you|not interested|unsubscribe|remove me|stop emailing|take me off|do not (contact|email))\b/i;
@@ -66,6 +67,19 @@ export async function recordInstantlyEvent(db: Db, e: InstantlyEvent) {
        select $1, $2, $3, $4, 'instantly-webhook'
        where not exists (select 1 from suppression_list where lower(email) = $2 and suppression_type = $3)`,
       [ct?.organization_id ?? null, email, suppress, suppress === "opt_out" ? "Asked not to be emailed" : "Email bounced"],
+    );
+  }
+  // Hot lead → phone alert right away (speed to YES wins the deal).
+  if (classification === "Positive" || type === "meeting_booked") {
+    const { rows: [who] } = await db.query<{ company_name: string | null; full_name: string | null; phone: string | null }>(
+      `select o.company_name, c.full_name, coalesce(c.phone, o.main_phone) phone from contacts c join organizations o on o.id = c.organization_id where c.id = $1`,
+      [ct?.id ?? null]);
+    const name = who?.full_name?.split(" ")[0] ?? email.split("@")[0];
+    const company = who?.company_name ?? s(e.company_name) ?? email.split("@")[1] ?? "";
+    await notifyOwner(
+      type === "meeting_booked" ? "Walkthrough booked!" : "Hot lead: replied YES / interested",
+      `${name} at ${company}${who?.phone ? ` - ${who.phone}` : ""}. Reply fast from Instantly or your inbox.`,
+      { priority: 5, tags: "fire", click: process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, "")}/replies` : undefined },
     );
   }
   if (ct && type === "reply") await db.query(`update organizations set pipeline_status = 'Replied', updated_at = now() where id = $1 and pipeline_status in ('New','Qualified','Approved','In Campaign')`, [ct.organization_id]);
