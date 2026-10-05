@@ -17,7 +17,7 @@ const args = process.env.TEST_PSQL_ARGS?.split(" ");
 function fakeSender() {
   const calls: { campaignId: string; leads: InstantlyLead[] }[] = [];
   const client: SenderClient = {
-    async listCampaigns() { return [{ id: "camp-1", name: "V1", status: 0, email_list: ["a@send.cc"] }]; },
+    async listCampaigns() { return [{ id: "camp-1", name: "V1", status: 0, email_list: ["a@send.cc"] }, { id: "camp-2", name: "Pilot", status: 0, email_list: ["a@send.cc"] }]; },
     async listAccounts() { return []; },
     async addLeads(campaignId, leads) { calls.push({ campaignId, leads }); return { uploaded: leads.length, skipped: 0, raw: {} }; },
   };
@@ -59,6 +59,26 @@ describe("push approved leads to sender", { skip: !args && "TEST_PSQL_ARGS not s
     const again = await pushApprovedToCampaign(db, client, "camp-1", { dryRun: false });
     assert.equal(again.ready.length, 0);
     assert.equal(calls.length, 1);
+  });
+
+  it("never adds someone already in another campaign", async () => {
+    const { client, calls } = fakeSender();
+    const r = await pushApprovedToCampaign(db, client, "camp-2", { dryRun: false });
+    assert.equal(r.ready.length, 0); // orgs[0] is already in camp-1
+    assert.equal(calls.length, 0);
+  });
+
+  it("takes only the best-scored N with limit", async () => {
+    await decide(db, orgs[1].id, "approve");
+    await decide(db, orgs[2].id, "approve");
+    const { client } = fakeSender();
+    const all = await pushApprovedToCampaign(db, client, "camp-2", { dryRun: true });
+    const one = await pushApprovedToCampaign(db, client, "camp-2", { dryRun: true, limit: 1 });
+    assert.ok(all.ready.length >= 2, `expected 2+ ready, got ${all.ready.length}`);
+    assert.equal(one.ready.length, 1);
+    assert.equal(one.ready[0].email, all.ready[0].email);
+    await decide(db, orgs[1].id, "reject");
+    await decide(db, orgs[2].id, "reopen");
   });
 
   it("blocks suppressed leads even if approved", async () => {

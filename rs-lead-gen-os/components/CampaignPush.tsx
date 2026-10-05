@@ -12,6 +12,7 @@ type Result = {
 export default function CampaignPush({ campaigns }: { campaigns: Campaign[] }) {
   const router = useRouter();
   const [id, setId] = useState(campaigns.find((c) => c.status === "Draft")?.id ?? campaigns[0]?.id ?? "");
+  const [limit, setLimit] = useState(90);
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<Result | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -20,7 +21,7 @@ export default function CampaignPush({ campaigns }: { campaigns: Campaign[] }) {
   async function run(dryRun: boolean) {
     setBusy(true); setErr(null);
     try {
-      const r = await fetch("/api/campaigns/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campaignId: id, dryRun }) });
+      const r = await fetch("/api/campaigns/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campaignId: id, dryRun, limit: limit > 0 ? limit : undefined }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Request failed");
       setRes(j);
@@ -35,6 +36,8 @@ export default function CampaignPush({ campaigns }: { campaigns: Campaign[] }) {
         <select value={id} onChange={(e) => { setId(e.target.value); setRes(null); }}>
           {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.status}</option>)}
         </select>
+        <label style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>How many (best scores first)
+          <input type="number" min={1} max={5000} value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setRes(null); }} style={{ width: 90 }} /></label>
         <button className="btn" disabled={busy || !id} onClick={() => run(true)}>{busy ? "Checking…" : "Preview approved leads"}</button>
         {res?.dryRun && res.ready.length > 0 && (
           <button className="btn primary" disabled={busy} onClick={() => run(false)}>Add {res.ready.length} lead{res.ready.length === 1 ? "" : "s"} to campaign</button>

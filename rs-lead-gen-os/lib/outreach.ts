@@ -19,10 +19,11 @@ type Candidate = {
 
 /**
  * Add owner-approved contacts to a sender campaign. Every contact passes outreachBlockers() first
- * (approved, VALID email, not suppressed, no prior bounce/unsubscribe). Contacts already in the
- * campaign are skipped, so running it twice adds nothing new. Never launches the campaign.
+ * (approved, VALID email, not suppressed, no prior bounce/unsubscribe). Contacts already in ANY
+ * Instantly campaign are skipped, so nobody is emailed twice and re-runs add nothing new.
+ * `limit` takes only the best-scored N. Never launches the campaign.
  */
-export async function pushApprovedToCampaign(db: Db, sender: SenderClient, externalCampaignId: string, opts: { dryRun?: boolean } = {}): Promise<PushResult> {
+export async function pushApprovedToCampaign(db: Db, sender: SenderClient, externalCampaignId: string, opts: { dryRun?: boolean; limit?: number } = {}): Promise<PushResult> {
   const dryRun = opts.dryRun ?? true;
   const remote = (await sender.listCampaigns()).find((c) => c.id === externalCampaignId);
   if (!remote) throw new Error("That campaign was not found in Instantly.");
@@ -37,15 +38,16 @@ export async function pushApprovedToCampaign(db: Db, sender: SenderClient, exter
       where q.status = 'Approved'
         and not exists (
           select 1 from campaign_contacts cc join campaigns k on k.id = cc.campaign_id
-           where cc.contact_id = c.id and k.provider = 'Instantly' and k.external_id = $1)
+           where cc.contact_id = c.id and k.provider = 'Instantly')
       order by o.lead_score desc nulls last`,
-    [externalCampaignId],
+    [],
   );
 
   const ready: PushResult["ready"] = [];
   const blocked: PushResult["blocked"] = [];
   const leads: InstantlyLead[] = [];
   for (const c of candidates) {
+    if (opts.limit && ready.length >= opts.limit) break;
     const reasons = await outreachBlockers(db, c.contact_id);
     if (reasons.length) { blocked.push({ contactId: c.contact_id, company: c.company_name, email: c.email, reasons }); continue; }
     const [first, ...rest] = (c.full_name || "").split(" ");
