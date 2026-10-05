@@ -11,10 +11,22 @@ export type PushResult = {
   skippedBySender: number;
 };
 
+/**
+ * Local-business focus: companies with 1,000+ employees (national chains, big health systems,
+ * public agencies of that size) buy cleaning through corporate contracts, so a local manager
+ * can't say yes. Their LinkedIn size band starts at 1001 or more.
+ */
+export const LOCAL_MAX_EMPLOYEES = 1000;
+export function isLargeCompany(employeeRange?: string | null) {
+  const min = parseInt((employeeRange || "").replace(/[^0-9 ]/g, " ").trim().split(/\s+/)[0] || "0", 10);
+  return min > LOCAL_MAX_EMPLOYEES;
+}
+
 type Candidate = {
   contact_id: string; organization_id: string; email: string | null; first_name: string | null; last_name: string | null;
   full_name: string | null; company_name: string; website: string | null; phone: string | null; main_phone: string | null;
   personalization_note: string | null;
+  employee_range: string | null;
 };
 
 /**
@@ -33,7 +45,7 @@ export async function pushApprovedToCampaign(db: Db, sender: SenderClient, exter
   const status = INSTANTLY_STATUS[remote.status] ?? String(remote.status);
 
   const { rows: candidates } = await db.query<Candidate>(
-    `select c.id contact_id, c.organization_id, c.email, c.first_name, c.last_name, c.full_name, o.company_name, o.website, c.phone, o.main_phone,
+    `select c.id contact_id, c.organization_id, c.email, c.first_name, c.last_name, c.full_name, o.company_name, o.website, c.phone, o.main_phone, o.employee_range,
             (select r.personalization_note from research r where r.organization_id = o.id order by r.researched_at desc limit 1) personalization_note
        from approval_queue q
        join organizations o on o.id = q.organization_id
@@ -53,6 +65,7 @@ export async function pushApprovedToCampaign(db: Db, sender: SenderClient, exter
   for (const c of candidates) {
     if (opts.limit && ready.length >= opts.limit) break;
     const reasons = await outreachBlockers(db, c.contact_id);
+    if (isLargeCompany(c.employee_range)) reasons.push(`national/large company (${c.employee_range}) — buys cleaning through corporate`);
     if (reasons.length) { blocked.push({ contactId: c.contact_id, company: c.company_name, email: c.email, reasons }); continue; }
     const [first, ...rest] = (c.full_name || "").split(" ");
     const lead: InstantlyLead = {

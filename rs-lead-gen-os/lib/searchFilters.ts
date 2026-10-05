@@ -27,6 +27,7 @@ export function buildGetleadFilters(s: SearchState) {
     ...(cities.length ? { cities } : {}),
     industries: [...new Set(TARGET_CATEGORIES.filter((c) => categories.includes(c.label)).flatMap((c) => c.industries))],
     job_titles: s.titles ?? DEFAULT_TITLES,
+    employees_max: 1000, // local businesses; national chains buy cleaning through corporate
     ...(s.verified ?? true ? { email_status: ["VALID"] } : {}),
     ...(s.phone ? { require_phone: true } : {}),
   };

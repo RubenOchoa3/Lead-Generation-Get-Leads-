@@ -35,7 +35,7 @@ describe("push approved leads to sender", { skip: !args && "TEST_PSQL_ARGS not s
     await db.query("begin");
     await ingestBatch(db, rows.map((r) => mapGetleadRow(r as never)!), { queueThreshold: 0, requireVerifiedEmail: false });
     await db.query("commit");
-    orgs = (await db.query<{ id: string; company_name: string }>("select id, company_name from organizations order by company_name")).rows;
+    orgs = (await db.query<{ id: string; company_name: string }>("select id, company_name from organizations order by company_name desc")).rows;
   });
   after(() => db?.close());
 
@@ -68,9 +68,24 @@ describe("push approved leads to sender", { skip: !args && "TEST_PSQL_ARGS not s
     assert.equal(calls.length, 0);
   });
 
+  it("skips national/large companies (1000+ employees)", async () => {
+    await decide(db, orgs[2].id, "approve"); // Fixture Rentals, 1001 to 5000
+    const { client } = fakeSender();
+    const r = await pushApprovedToCampaign(db, client, "camp-2", { dryRun: true });
+    assert.ok(r.blocked.some((b) => b.company === orgs[2].company_name && /national\/large/.test(b.reasons.join())));
+    await decide(db, orgs[2].id, "reopen");
+  });
+
   it("takes only the best-scored N with limit", async () => {
+    const extra = { ...(rows[1] as Record<string, unknown>), "Company Name": "Extra Local Co", "Email": "pm@extralocal.example",
+      "Company Domain": "extralocal.example", "Company Website": "https://extralocal.example", "Contact LinkedIn URL": "https://www.linkedin.com/in/extra-local",
+      "Company LinkedIn URL": "https://www.linkedin.com/company/extra-local", "Company Street Address": "9 Extra St" };
+    await db.query("begin");
+    await ingestBatch(db, [mapGetleadRow(extra as never)!], { queueThreshold: 0, requireVerifiedEmail: false });
+    await db.query("commit");
+    const extraOrg = (await db.query<{ id: string }>("select id from organizations where company_name = 'Extra Local Co'")).rows[0];
     await decide(db, orgs[1].id, "approve");
-    await decide(db, orgs[2].id, "approve");
+    await decide(db, extraOrg.id, "approve");
     const { client } = fakeSender();
     const all = await pushApprovedToCampaign(db, client, "camp-2", { dryRun: true });
     const one = await pushApprovedToCampaign(db, client, "camp-2", { dryRun: true, limit: 1 });
@@ -78,7 +93,7 @@ describe("push approved leads to sender", { skip: !args && "TEST_PSQL_ARGS not s
     assert.equal(one.ready.length, 1);
     assert.equal(one.ready[0].email, all.ready[0].email);
     await decide(db, orgs[1].id, "reject");
-    await decide(db, orgs[2].id, "reopen");
+    await decide(db, extraOrg.id, "reject");
   });
 
   it("blocks suppressed leads even if approved", async () => {

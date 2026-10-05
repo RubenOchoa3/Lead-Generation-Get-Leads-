@@ -23,6 +23,13 @@ Living results log: `docs/campaign-learnings.md` — read it first, append to it
 - Map the whole market (TAM): Getlead searches + New Businesses registry waterfall + call/visit list.
   Reach everyone once per cycle rather than hammering a small list.
 
+## 2b. Who we email
+- **Local businesses only** (under 1,000 employees). National chains, big health systems and large
+  agencies buy cleaning through corporate contracts — a local manager can't say yes. The dashboard
+  enforces this: searches send `employees_max: 1000` and the campaign push blocks 1001+ employee
+  companies. Locally-owned franchises (Home Instead, H&R Block offices) are fine.
+- Email every available approved target once per cycle; volume is limited only by mailbox caps.
+
 ## 3. Copy recipe (every email must pass all three)
 1. **Clear value offer / incentive** in the first lines — what R&S does + a concrete reason to talk
    (e.g. free walkthrough with a written room-by-room cleaning scope they keep either way).
@@ -34,6 +41,14 @@ Plus: plain text, short (under ~120 words), no "I researched your LinkedIn" gimm
 flattery, sign as **Ruben Ochoa**, and keep the CAN-SPAM footer (physical address
 5401 Business Park South, Suite 208, Bakersfield, CA 93309 + "reply no thanks and I won't email
 again"). Replies of "no thanks"/unsubscribe are auto-suppressed by the Instantly webhook.
+
+**Making the offer irresistible ($100M Offers value equation)** —
+Value = (Dream outcome × Perceived likelihood) ÷ (Time delay × Effort & sacrifice). For a facility
+manager: dream outcome = a building that's always clean without chasing the janitor; likelihood =
+real local proof + a guarantee; time delay = walkthrough this week, can start within days; effort =
+we write the scope, fixed monthly price, one reply to start. Stack bonuses the buyer values (free
+written room-by-room scope they keep; first-month extras) and offer a guarantee R&S can actually
+honor (e.g. missed item re-cleaned within 24 hours). Only claim scarcity/urgency that is true.
 
 **Copy review checklist** (answer each yes/no before any copy goes live):
 - [ ] Offer is stated in the first 2 sentences and is specific

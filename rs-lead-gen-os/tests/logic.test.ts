@@ -85,7 +85,7 @@ describe("getlead mapping + scoring", () => {
   });
   it("builds GetLeads filters from a saved search (whole state when no cities)", () => {
     const f = buildGetleadFilters({ country: "United States", state: "California", cities: [], categories: ["Dental offices"], titles: ["Owner"], verified: true });
-    assert.deepEqual(f, { countries: ["United States"], states: ["California"], industries: ["Dentists"], job_titles: ["Owner"], email_status: ["VALID"] });
+    assert.deepEqual(f, { countries: ["United States"], states: ["California"], industries: ["Dentists"], job_titles: ["Owner"], employees_max: 1000, email_status: ["VALID"] });
     assert.deepEqual(buildGetleadFilters({ state: "All states", cities: ["Fresno"], categories: [], verified: false }).cities, ["Fresno"]);
     assert.equal("states" in buildGetleadFilters({ state: "All states" }), false);
   });
@@ -171,5 +171,16 @@ describe("instantly events", async () => {
     assert.equal(classifyReply("lead_interested", null), "Positive");
     assert.equal(classifyReply("lead_not_interested", null), "Not Interested");
     assert.equal(classifyReply("reply_received", "I'm out of the office until Monday"), "Out of Office");
+  });
+});
+
+describe("local-business focus", async () => {
+  const { isLargeCompany } = await import("../lib/outreach");
+  it("treats 1001+ employee companies as national/large", () => {
+    assert.equal(isLargeCompany("10001+"), true);
+    assert.equal(isLargeCompany("1001 to 5000"), true);
+    assert.equal(isLargeCompany("501 to 1000"), false);
+    assert.equal(isLargeCompany("11 to 50"), false);
+    assert.equal(isLargeCompany(null), false);
   });
 });
