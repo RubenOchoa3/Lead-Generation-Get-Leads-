@@ -5,7 +5,7 @@ Newest entries at the top. Keep each entry to a few lines.
 ## 2026-10-04
 - Find Leads works server-side: `GETLEAD_API_BASE=https://app.getleads.io`; columns/filters moved to GetLeads' current names; count uses a 1-row search (no REST count route). Country/state/optional-city search.
 - Daily Lead Engine built: saved searches marked "Run nightly" run via Railway cron service `nightly-leads` (12:00 UTC ≈ 5 AM PT), max 25/search by default. Owner turns it on in Settings → Schedule.
-- Next: registry "waterfall" (CA SOS / county DBA filings → GetLeads enrichment) — waiting on owner's answers on scope and paid data.
+- Registry waterfall built (California, free sources only): CA SOS BE Public Search (needs free `CASOS_API_KEY` from calicodev.sos.ca.gov) + City of Fresno New Business Directory → Getlead lookup by name → queue, else "Call / visit" list (New Businesses page, CSV export). Runs nightly with the Daily Lead Engine, 40 lookups/run. County DBA filings skipped: no free online feed.
 - 18 InboxKit mailboxes exported to Instantly, warmup on (started Oct 3), all 18 on campaign "V1" (draft). Owner wants 1-week warmup → launch Fri Oct 9 at 5/mailbox/day, ramp weekly.
 - V1 emails now include mailing address + opt-out. 6 sending domains forward to rscentralvalleycleaning.com.
 - 425 verified Central Valley leads pulled from Getlead (private/, not in git) for owner to upload. Getlead renamed its export columns — the app's server-side Getlead search mapper uses the old labels.

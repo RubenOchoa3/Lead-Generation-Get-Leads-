@@ -123,3 +123,34 @@ describe("classification from real pilot patterns", () => {
     assert.equal(classifyBusiness(["531311", "561110", "531210"], "Real Estate"), "Property management");
   });
 });
+
+describe("registry waterfall", async () => {
+  const { sameBusiness } = await import("../lib/registry");
+  const { mapCasosRow } = await import("../lib/providers/casos");
+  const { parseHtmlTables, mapFresnoRow } = await import("../lib/providers/fresnoBiz");
+  const { isoDate } = await import("../lib/registryTypes");
+  it("matches the same business across sources", () => {
+    assert.ok(sameBusiness("Valley Dental Group, Inc.", "VALLEY DENTAL GROUP INC"));
+    assert.ok(sameBusiness("Valley Dental", "Valley Dental Group"));
+    assert.equal(sameBusiness("Valley", "Valley Dental Group"), false); // too short to trust
+    assert.equal(sameBusiness("Bright Smiles Dental", "Bright Ideas LLC"), false);
+  });
+  it("maps CA SOS rows whatever the key casing", () => {
+    const r = mapCasosRow({ EntityID: "B20260012345", EntityName: "Oak Street Dental LLC", entityType: "LLC", FormationDate: "09/28/2026", entityCity: "Bakersfield", entityZipCode: "93301" })!;
+    assert.equal(r.externalId, "B20260012345");
+    assert.equal(r.filedDate, "2026-09-28");
+    assert.equal(r.city, "Bakersfield");
+    assert.equal(mapCasosRow({ entityName: "No Id" }), null);
+  });
+  it("reads the Fresno new-business table by header", () => {
+    const rows = parseHtmlTables(`<table><tr><th>Business Name</th><th>Address</th><th>Business Type</th><th>Start Date</th></tr>
+      <tr><td>Fig &amp; Olive Pediatrics</td><td>123 W Shaw Ave</td><td>Medical Office</td><td>10/01/2026</td></tr></table>`);
+    const r = mapFresnoRow(rows[0])!;
+    assert.equal(r.name, "Fig & Olive Pediatrics");
+    assert.equal(r.address, "123 W Shaw Ave");
+    assert.equal(r.businessType, "Medical Office");
+    assert.equal(r.filedDate, "2026-10-01");
+    assert.equal(r.city, "Fresno");
+  });
+  it("normalizes dates", () => { assert.equal(isoDate("2026-10-02T00:00:00Z"), "2026-10-02"); assert.equal(isoDate(""), null); });
+});

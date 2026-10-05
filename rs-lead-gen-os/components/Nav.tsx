@@ -6,6 +6,7 @@ export const NAV: Array<{ group: string; items: Array<{ href: string; label: str
   { group: "Overview", items: [{ href: "/", label: "Dashboard" }] },
   { group: "Prospecting", items: [
     { href: "/find-leads", label: "Find Leads" },
+    { href: "/new-businesses", label: "New Businesses" },
     { href: "/leads", label: "Leads" },
     { href: "/approval", label: "Approval Queue", countKey: "review" },
   ] },

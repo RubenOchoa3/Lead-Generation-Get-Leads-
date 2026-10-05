@@ -4,6 +4,7 @@ import { one } from "@/lib/db";
 import { getleadConfigured } from "@/lib/providers/getlead";
 import { buildGetleadFilters, type SearchState } from "@/lib/searchFilters";
 import { runLeadSearch } from "@/lib/leadRun";
+import { runRegistryWaterfall } from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,8 +14,8 @@ const DEFAULT_NIGHTLY_MAX = 25;
 
 /**
  * Daily Lead Engine, called by the Railway cron service with `Authorization: Bearer $CRON_SECRET`.
- * Runs every saved search marked "Run nightly" so new leads are waiting in the Approval Queue in
- * the morning. Off until the schedule is enabled in Settings. Finds and queues only — never sends.
+ * Pulls newly registered businesses (registry waterfall), then runs every saved search marked
+ * "Run nightly", so new leads are waiting in the Approval Queue and New Businesses in the morning. Off until the schedule is enabled in Settings. Finds and queues only — never sends.
  */
 export async function POST(req: Request) {
   if (!hasMachineSecret(req, "CRON_SECRET")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,9 +23,13 @@ export async function POST(req: Request) {
   if (!schedule?.value?.enabled) return NextResponse.json({ ok: true, skipped: "schedule disabled in Settings" });
   if (!getleadConfigured()) return NextResponse.json({ ok: false, skipped: "Getlead server API not configured" }, { status: 503 });
 
+  // New businesses first: registry pull → Getlead lookup → queue or call / visit list.
+  let registry: unknown;
+  try { registry = await runRegistryWaterfall("schedule", { daysBack: 3 }); } catch (e) { registry = { error: String((e as Error).message ?? e) }; }
+
   const saved = await one<{ value: Array<{ name: string; filters: SearchState }> }>("select value from settings where key = 'saved_searches'");
   const nightly = (saved?.value ?? []).filter((s) => s.filters?.nightly);
-  if (!nightly.length) return NextResponse.json({ ok: true, skipped: "no saved search is marked Run nightly" });
+  if (!nightly.length) return NextResponse.json({ ok: true, registry, skipped: "no saved search is marked Run nightly" });
 
   const cap = Math.max(1, Math.min(500, Number(schedule.value.max_per_search) || DEFAULT_NIGHTLY_MAX));
   const results = [];
@@ -40,5 +45,5 @@ export async function POST(req: Request) {
       results.push({ search: s.name, error: String((e as Error).message ?? e) });
     }
   }
-  return NextResponse.json({ ok: results.every((r) => !("error" in r)), results });
+  return NextResponse.json({ ok: results.every((r) => !("error" in r)), registry, results });
 }

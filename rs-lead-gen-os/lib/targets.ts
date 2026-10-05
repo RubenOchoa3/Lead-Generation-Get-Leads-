@@ -35,3 +35,9 @@ export const US_STATES = [
   "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia",
   "Washington", "West Virginia", "Wisconsin", "Wyoming",
 ];
+
+/** Central Valley cities whose newly registered businesses enter the registry waterfall. */
+export const REGISTRY_CITIES = [
+  ...DEFAULT_CITIES, "Arvin", "Lamont", "McFarland", "Taft", "Tehachapi", "Ridgecrest", "Clovis", "Sanger", "Selma", "Reedley",
+  "Kerman", "Kingsburg", "Madera", "Porterville", "Lindsay", "Exeter", "Dinuba", "Farmersville", "Woodlake", "Lemoore", "Corcoran", "Avenal",
+];

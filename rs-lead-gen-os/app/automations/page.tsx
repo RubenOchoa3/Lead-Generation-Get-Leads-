@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 const CARDS = [
   { type: "daily_lead_engine", name: "Daily Lead Engine", note: "Nightly: runs saved searches marked “Run nightly” → dedupe → score → queue. Turn on in Settings → Schedule." },
+  { type: "registry_waterfall", name: "New Businesses (registry)", note: "Nightly: CA SOS filings + Fresno new licenses → Getlead lookup → queue, or call / visit list." },
   { type: "getlead_import", name: "Getlead Sync / Import", note: "Imports from Claude's Getlead MCP pulls or CSV exports." },
   { type: "manual_search", name: "Manual Getlead search", note: "Get Leads button on Find Leads (needs server Getlead key)." },
   { type: "inboxkit_sync", name: "InboxKit Sync", note: "Domains + mailboxes snapshot." },
