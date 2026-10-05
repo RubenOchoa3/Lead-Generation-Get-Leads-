@@ -38,7 +38,7 @@ type Candidate = {
  */
 export const DEFAULT_COOLDOWN_DAYS = 45;
 
-export async function pushApprovedToCampaign(db: Db, sender: SenderClient, externalCampaignId: string, opts: { dryRun?: boolean; limit?: number; cooldownDays?: number } = {}): Promise<PushResult> {
+export async function pushApprovedToCampaign(db: Db, sender: SenderClient, externalCampaignId: string, opts: { dryRun?: boolean; limit?: number; cooldownDays?: number; contactIds?: string[]; allowLarge?: boolean } = {}): Promise<PushResult> {
   const dryRun = opts.dryRun ?? true;
   const remote = (await sender.listCampaigns()).find((c) => c.id === externalCampaignId);
   if (!remote) throw new Error("That campaign was not found in Instantly.");
@@ -55,8 +55,9 @@ export async function pushApprovedToCampaign(db: Db, sender: SenderClient, exter
           select 1 from campaign_contacts cc join campaigns k on k.id = cc.campaign_id
            where cc.contact_id = c.id and k.provider = 'Instantly'
              and (k.external_id = $1 or cc.added_at > now() - make_interval(days => $2)))
+        and ($3::uuid[] is null or c.id = any($3::uuid[]))
       order by o.lead_score desc nulls last`,
-    [externalCampaignId, opts.cooldownDays ?? DEFAULT_COOLDOWN_DAYS],
+    [externalCampaignId, opts.cooldownDays ?? DEFAULT_COOLDOWN_DAYS, opts.contactIds ?? null],
   );
 
   const ready: PushResult["ready"] = [];
@@ -65,7 +66,7 @@ export async function pushApprovedToCampaign(db: Db, sender: SenderClient, exter
   for (const c of candidates) {
     if (opts.limit && ready.length >= opts.limit) break;
     const reasons = await outreachBlockers(db, c.contact_id);
-    if (isLargeCompany(c.employee_range)) reasons.push(`national/large company (${c.employee_range}) — buys cleaning through corporate`);
+    if (!opts.allowLarge && isLargeCompany(c.employee_range)) reasons.push(`national/large company (${c.employee_range}) — buys cleaning through corporate`);
     if (reasons.length) { blocked.push({ contactId: c.contact_id, company: c.company_name, email: c.email, reasons }); continue; }
     const [first, ...rest] = (c.full_name || "").split(" ");
     const lead: InstantlyLead = {

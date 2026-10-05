@@ -5,6 +5,7 @@ import { getleadConfigured } from "@/lib/providers/getlead";
 import { buildGetleadFilters, type SearchState } from "@/lib/searchFilters";
 import { runLeadSearch } from "@/lib/leadRun";
 import { runRegistryWaterfall } from "@/lib/registry";
+import { applyRamp, buildDailyBatch } from "@/lib/dailyBatch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -29,11 +30,10 @@ export async function POST(req: Request) {
 
   const saved = await one<{ value: Array<{ name: string; filters: SearchState }> }>("select value from settings where key = 'saved_searches'");
   const nightly = (saved?.value ?? []).filter((s) => s.filters?.nightly);
-  if (!nightly.length) return NextResponse.json({ ok: true, registry, skipped: "no saved search is marked Run nightly" });
 
   const cap = Math.max(1, Math.min(500, Number(schedule.value.max_per_search) || DEFAULT_NIGHTLY_MAX));
   const results = [];
-  for (const s of nightly) {
+  for (const s of nightly) { // (none marked nightly → skipped; the daily batch below still fills itself)
     const f = s.filters;
     try {
       const { runId, summary } = await runLeadSearch(
@@ -45,5 +45,9 @@ export async function POST(req: Request) {
       results.push({ search: s.name, error: String((e as Error).message ?? e) });
     }
   }
-  return NextResponse.json({ ok: results.every((r) => !("error" in r)), registry, results });
+  // Weekly ramp (5→10→15→20→25 per mailbox, held if bounces ≥3%), then build today's batch for approval.
+  let ramp: unknown, batch: unknown;
+  try { ramp = await applyRamp(); } catch (e) { ramp = { error: String((e as Error).message ?? e) }; }
+  try { batch = await buildDailyBatch(); } catch (e) { batch = { error: String((e as Error).message ?? e) }; }
+  return NextResponse.json({ ok: results.every((r) => !("error" in r)), registry, results, ramp, batch });
 }

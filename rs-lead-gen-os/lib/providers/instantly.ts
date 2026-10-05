@@ -29,6 +29,10 @@ export type InstantlyLead = {
   custom_variables?: Record<string, string>;
 };
 
+export type InstantlyCampaignDetail = InstantlyCampaign & {
+  sequences?: Array<{ steps: Array<{ variants: Array<{ subject: string; body: string }> }> }>;
+};
+
 export interface SenderClient {
   listCampaigns(): Promise<InstantlyCampaign[]>;
   listAccounts(): Promise<InstantlyAccount[]>;
@@ -46,6 +50,19 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const json = text ? JSON.parse(text) : {};
   if (!res.ok) throw new Error(`Instantly API ${res.status}: ${text.slice(0, 300)}`);
   return json as T;
+}
+
+/** Read a campaign's email copy (for the morning preview). */
+export async function getCampaignDetail(id: string) {
+  return call<InstantlyCampaignDetail>(`/api/v2/campaigns/${encodeURIComponent(id)}`);
+}
+
+/** Sending caps only — used by the weekly ramp. Never changes campaign status. */
+export async function setAccountDailyLimit(email: string, dailyLimit: number) {
+  await call(`/api/v2/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ daily_limit: dailyLimit }) });
+}
+export async function setCampaignDailyLimit(id: string, dailyLimit: number) {
+  await call(`/api/v2/campaigns/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ daily_limit: dailyLimit }) });
 }
 
 export const instantly: SenderClient = {

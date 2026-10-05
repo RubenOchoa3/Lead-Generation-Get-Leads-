@@ -8,6 +8,8 @@ export type LeadRunInput = {
   requestedCount: number;
   queueThreshold: number;
   requireVerifiedEmail: boolean;
+  /** Page further into the same search each day so repeat runs find new leads. */
+  startOffset?: number;
 };
 
 /**
@@ -19,7 +21,7 @@ export async function runLeadSearch(input: LeadRunInput, type: string, trigger: 
   const total = emptySummary();
   let credits = 0;
   try {
-    let offset = 0;
+    let offset = input.startOffset ?? 0;
     while (total.received < input.requestedCount) {
       await setStage(db, runId, "Searching", `offset ${offset}`);
       const t0 = Date.now();
@@ -38,12 +40,12 @@ export async function runLeadSearch(input: LeadRunInput, type: string, trigger: 
         if (k === "errors") total.errors.push(...s.errors); else (total[k] as number) += s[k] as number;
       }
       total.received += page.contacts.length - prospects.length; // count rows without a company too
-      if (!page.has_more || !page.contacts.length) break;
       offset = page.next_offset ?? offset + page.contacts.length;
+      if (!page.has_more || !page.contacts.length) break;
     }
     await finishRun(db, runId, total, { usage: { getlead_credits: credits } });
     console.log(`[getlead] run ${runId} done: ${JSON.stringify({ ...total, errors: total.errors.length })}`);
-    return { runId, summary: total };
+    return { runId, summary: total, nextOffset: offset };
   } catch (e) {
     await failRun(db, runId, String((e as Error).message ?? e));
     throw Object.assign(e as Error, { runId });

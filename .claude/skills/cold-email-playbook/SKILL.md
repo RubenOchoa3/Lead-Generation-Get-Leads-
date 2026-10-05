@@ -83,6 +83,12 @@ whose revenue per 100 drops ~30% below its own trailing 4-week average (fatigue)
 **Segments:** shift volume toward business types that close the largest contracts (Campaigns →
 Lead-to-profit by segment), not those that reply most.
 
+## 5b. Daily routine (how it runs)
+- Before 5 AM the nightly run builds **Today's Send** (/today): 90% local, 10% big-company test,
+  topped up from Getlead if the queue is short. The owner reviews people + exact emails and clicks
+  **Approve & send**; leads go into the two active campaigns and send 8 AM–12 PM Pacific.
+- Weekly ramp is automatic (5→10→15→20→25/mailbox) and holds when bounces ≥ 3% or complaints > 0.
+
 ## 6. Volume & deliverability guardrails
 - New mailboxes: 5/mailbox/day in week 1, then +5/week while bounce < 3% and spam complaints ≈ 0,
   to a ceiling of 20–25/mailbox/day. Warmup stays on.

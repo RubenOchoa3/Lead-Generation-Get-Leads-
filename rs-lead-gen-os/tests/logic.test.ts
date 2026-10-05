@@ -184,3 +184,25 @@ describe("local-business focus", async () => {
     assert.equal(isLargeCompany(null), false);
   });
 });
+
+describe("daily batch helpers", async () => {
+  const { rampStep, pacificToday } = await import("../lib/dailyBatch");
+  const { renderMerge, htmlToText } = await import("../lib/emailPreview");
+  it("ramps per mailbox weekly and caps at the last step", () => {
+    const s = { start_date: "2026-10-06", ramp: [5, 10, 15, 20, 25] };
+    assert.deepEqual(rampStep(s, "2026-10-06"), { week: 1, perMailbox: 5 });
+    assert.deepEqual(rampStep(s, "2026-10-12"), { week: 1, perMailbox: 5 });
+    assert.deepEqual(rampStep(s, "2026-10-13"), { week: 2, perMailbox: 10 });
+    assert.deepEqual(rampStep(s, "2026-12-30"), { week: 13, perMailbox: 25 });
+    assert.deepEqual(rampStep(s, "2026-10-01"), { week: 1, perMailbox: 5 });
+  });
+  it("uses the Pacific calendar day", () => {
+    assert.equal(pacificToday(new Date("2026-10-06T05:00:00Z")), "2026-10-05"); // 10 PM PDT
+    assert.equal(pacificToday(new Date("2026-10-06T16:00:00Z")), "2026-10-06");
+  });
+  it("renders merge tags with fallbacks and HTML to text", () => {
+    const t = renderMerge("Hi {{firstName | there}}, {{companyName|your building}}", { firstName: "Ana", companyName: "" });
+    assert.equal(t, "Hi Ana, your building");
+    assert.equal(htmlToText("<div>Hi</div><div><br /></div><div>R&amp;S<br />Owner</div>"), "Hi\n\nR&S\nOwner");
+  });
+});

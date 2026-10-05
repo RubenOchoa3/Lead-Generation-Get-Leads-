@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export const NAV: Array<{ group: string; items: Array<{ href: string; label: string; countKey?: string }> }> = [
-  { group: "Overview", items: [{ href: "/", label: "Dashboard" }] },
+  { group: "Overview", items: [{ href: "/", label: "Dashboard" }, { href: "/today", label: "Today's Send" }] },
   { group: "Prospecting", items: [
     { href: "/find-leads", label: "Find Leads" },
     { href: "/new-businesses", label: "New Businesses" },
