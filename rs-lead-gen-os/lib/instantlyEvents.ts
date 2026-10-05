@@ -13,6 +13,8 @@ const s = (v: unknown) => (v === null || v === undefined ? null : String(v));
 /** Instantly webhook event → our event type (null = ignore). */
 export function mapEventType(t: string): string | null {
   const x = t.toLowerCase();
+  // "campaign_completed_for_lead_without_reply" etc. mean the sequence ended, not that anyone replied.
+  if (x.startsWith("campaign_completed")) return null;
   if (x.includes("sent")) return "sent";
   if (x.includes("bounce")) return "bounce";
   if (x.includes("unsubscribe")) return "unsubscribe";

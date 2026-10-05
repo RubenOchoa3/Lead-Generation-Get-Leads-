@@ -164,6 +164,8 @@ describe("instantly events", async () => {
     assert.equal(mapEventType("lead_unsubscribed"), "unsubscribe");
     assert.equal(mapEventType("lead_meeting_booked"), "meeting_booked");
     assert.equal(mapEventType("email_opened"), null);
+    assert.equal(mapEventType("campaign_completed_for_lead_without_reply"), null);
+    assert.equal(mapEventType("campaign_completed"), null);
   });
   it("honours 'no thanks' and spots YES", () => {
     assert.equal(classifyReply("reply_received", "No thanks, we're all set"), "Unsubscribe");
