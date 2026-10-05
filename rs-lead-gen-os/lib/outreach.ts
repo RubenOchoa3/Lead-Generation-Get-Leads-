@@ -19,11 +19,14 @@ type Candidate = {
 
 /**
  * Add owner-approved contacts to a sender campaign. Every contact passes outreachBlockers() first
- * (approved, VALID email, not suppressed, no prior bounce/unsubscribe). Contacts already in ANY
- * Instantly campaign are skipped, so nobody is emailed twice and re-runs add nothing new.
- * `limit` takes only the best-scored N. Never launches the campaign.
+ * (approved, VALID email, not suppressed, no prior bounce/unsubscribe). Nobody is ever added to
+ * the same campaign twice, and nobody is added to another campaign within `cooldownDays` (default
+ * 45) of their last one — one email per person per 30–60 day cycle. `limit` takes the best-scored N.
+ * Never launches the campaign.
  */
-export async function pushApprovedToCampaign(db: Db, sender: SenderClient, externalCampaignId: string, opts: { dryRun?: boolean; limit?: number } = {}): Promise<PushResult> {
+export const DEFAULT_COOLDOWN_DAYS = 45;
+
+export async function pushApprovedToCampaign(db: Db, sender: SenderClient, externalCampaignId: string, opts: { dryRun?: boolean; limit?: number; cooldownDays?: number } = {}): Promise<PushResult> {
   const dryRun = opts.dryRun ?? true;
   const remote = (await sender.listCampaigns()).find((c) => c.id === externalCampaignId);
   if (!remote) throw new Error("That campaign was not found in Instantly.");
@@ -38,9 +41,10 @@ export async function pushApprovedToCampaign(db: Db, sender: SenderClient, exter
       where q.status = 'Approved'
         and not exists (
           select 1 from campaign_contacts cc join campaigns k on k.id = cc.campaign_id
-           where cc.contact_id = c.id and k.provider = 'Instantly')
+           where cc.contact_id = c.id and k.provider = 'Instantly'
+             and (k.external_id = $1 or cc.added_at > now() - make_interval(days => $2)))
       order by o.lead_score desc nulls last`,
-    [],
+    [externalCampaignId, opts.cooldownDays ?? DEFAULT_COOLDOWN_DAYS],
   );
 
   const ready: PushResult["ready"] = [];

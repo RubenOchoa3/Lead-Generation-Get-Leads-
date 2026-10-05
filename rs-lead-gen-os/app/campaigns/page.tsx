@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Campaigns() {
   try {
-    const [campaigns, [{ approved }]] = await Promise.all([
+    const [campaigns, [{ approved }], segments] = await Promise.all([
       sql(`select c.*, (select count(*)::int from campaign_contacts cc where cc.campaign_id = c.id) leads,
              (select count(*)::int from outreach_events e where e.campaign_id = c.id and e.event_type = 'sent') sent,
              (select count(*)::int from outreach_events e where e.campaign_id = c.id and e.event_type = 'reply') replies,
@@ -27,6 +27,18 @@ export default async function Campaigns() {
              (select coalesce(sum(revenue),0)::float from outreach_events e where e.campaign_id = c.id and e.event_type = 'closed_won') revenue
            from campaigns c order by created_at desc`),
       sql<{ approved: number }>(`select count(*)::int approved from approval_queue where status = 'Approved'`),
+      // Lead-to-profit by segment: which business types turn emails into revenue (not just replies).
+      sql(`select coalesce(o.business_type, 'Unclassified') segment,
+              count(distinct cc.contact_id)::int emailed,
+              count(distinct e.organization_id) filter (where e.event_type = 'reply' and e.reply_classification = 'Positive')::int yes,
+              count(distinct e.organization_id) filter (where e.event_type = 'meeting_booked')::int meetings,
+              count(distinct e.organization_id) filter (where e.event_type = 'closed_won')::int won,
+              coalesce(sum(e.revenue) filter (where e.event_type = 'closed_won'), 0)::float revenue
+         from campaign_contacts cc
+         join contacts ct on ct.id = cc.contact_id
+         join organizations o on o.id = ct.organization_id
+         left join outreach_events e on e.organization_id = o.id
+        group by 1 order by revenue desc, won desc, emailed desc`),
     ]);
     const inst = await loadInstantly();
     return (
@@ -46,6 +58,17 @@ export default async function Campaigns() {
           Getlead does not send cold email (its outreach hooks are HeyReach for LinkedIn and Smartlead for website-visitor leads only). The recommended sender is the Instantly workspace R&amp;S already has, with InboxKit mailboxes exported into it. Once you choose, this page gets the campaign builder (name, audience, mailboxes, daily limit, follow-ups, sending window, start date, Claude personalization, approval before launch) and live sync. {approved} approved lead{approved === 1 ? " is" : "s are"} ready.
         </div></div>
         )}
+        <Panel title="Lead-to-profit by segment" sub="Judge campaigns by closed revenue, not replies. Shift volume toward the segments that buy the biggest contracts." pad={false}>
+          {segments.length === 0 ? <Empty title="No leads emailed yet" /> : (
+            <div className="table-wrap"><table>
+              <thead><tr><th>Business type</th><th>Emailed</th><th>Replied YES</th><th>Walkthroughs</th><th>Won</th><th>Revenue / yr</th><th>Revenue per 100 emailed</th></tr></thead>
+              <tbody>{segments.map((s: any) => (
+                <tr key={s.segment}><td className="cell-main">{s.segment}</td>
+                  {["emailed", "yes", "meetings", "won"].map((k) => <td key={k} className="num">{s[k]}</td>)}
+                  <td className="num">${Math.round(s.revenue).toLocaleString()}</td>
+                  <td className="num">${s.emailed ? Math.round((s.revenue / s.emailed) * 100).toLocaleString() : 0}</td></tr>))}</tbody>
+            </table></div>)}
+        </Panel>
         <Panel title="Campaigns" pad={false}>
           {campaigns.length === 0 ? <Empty title="No campaigns yet" /> : (
             <div className="table-wrap"><table>

@@ -2,6 +2,11 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-05
+- Cold email playbook adopted (owner's PDF): skill `.claude/skills/cold-email-playbook`, agent `.claude/agents/campaign-optimizer`, log `docs/campaign-learnings.md`.
+- App: one email per cycle, 45-day cooldown between campaigns (never same campaign twice); lead drawer records Replied YES / Walkthrough / Won $ / Lost against the campaign; Campaigns page shows revenue by segment; `/api/webhooks/instantly?token=` records sent/reply/bounce/unsub and auto-suppresses "no thanks".
+- Instantly pilot campaign "R&S — Central Valley Pilot (first 90)" holds 90 approved leads, mailboxes capped 5/day. Not launched — waiting on owner's script + "launch".
+
 ## 2026-10-04
 - Find Leads works server-side: `GETLEAD_API_BASE=https://app.getleads.io`; columns/filters moved to GetLeads' current names; count uses a 1-row search (no REST count route). Country/state/optional-city search.
 - Daily Lead Engine built: saved searches marked "Run nightly" run via Railway cron service `nightly-leads` (12:00 UTC ≈ 5 AM PT), max 25/search by default. Owner turns it on in Settings → Schedule.

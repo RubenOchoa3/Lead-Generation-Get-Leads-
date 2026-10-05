@@ -40,6 +40,19 @@ export default function LeadDrawer({ id, onClose, onChanged }: { id: string; onC
     setNote(res.ok ? "Saved." : `Error: ${j.error}`);
     await load(); onChanged?.();
   }
+  async function outcome(type: "reply_yes" | "meeting_booked" | "closed_won" | "closed_lost") {
+    let revenue: number | undefined;
+    if (type === "closed_won") {
+      const v = window.prompt("Annual contract value ($) — e.g. 1,500/month = 18000");
+      if (v === null) return;
+      revenue = Number(v.replace(/[^0-9.]/g, "")) || 0;
+    }
+    setBusy(true); setNote(null);
+    const res = await fetch(`/api/leads/${id}/outcome`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, revenue }) });
+    const j = await res.json(); setBusy(false);
+    setNote(res.ok ? (j.attributedTo ? "Saved and credited to its campaign." : "Saved (not in a campaign yet).") : `Error: ${j.error}`);
+    await load(); onChanged?.();
+  }
   async function research() {
     setBusy(true); setNote(null);
     const res = await fetch(`/api/research/${id}`, { method: "POST" });
@@ -138,7 +151,7 @@ export default function LeadDrawer({ id, onClose, onChanged }: { id: string; onC
                   {d.research.map((x) => <li key={x.id}><span>{fmt(x.researched_at)}</span><span>Researched ({x.model})</span></li>)}
                   {d.queue && <li><span>{fmt(d.queue.queued_at)}</span><span>Queued — {d.queue.why_selected}</span></li>}
                   {d.queue?.reviewed_at && <li><span>{fmt(d.queue.reviewed_at)}</span><span>{d.queue.status}</span></li>}
-                  {d.outreach.map((x, i) => <li key={`o${i}`}><span>{fmt(x.occurred_at)}</span><span>{x.event_type.replace(/_/g, " ")}{x.reply_classification ? ` · ${x.reply_classification}` : ""}</span></li>)}
+                  {d.outreach.map((x, i) => <li key={`o${i}`}><span>{fmt(x.occurred_at)}</span><span>{x.event_type.replace(/_/g, " ")}{x.reply_classification ? ` · ${x.reply_classification}` : ""}{Number(x.revenue) > 0 ? ` · $${Number(x.revenue).toLocaleString()}/yr` : ""}</span></li>)}
                 </ul>
               </div>
             </>
@@ -150,7 +163,10 @@ export default function LeadDrawer({ id, onClose, onChanged }: { id: string; onC
           <button className="btn" disabled={busy || !d} onClick={() => decide("reject")}>Reject</button>
           <button className="btn" disabled={busy || !d} onClick={research}>Research{r ? " again" : ""}</button>
           <button className="btn danger" disabled={busy || !d} onClick={() => decide("suppress")}>Suppress</button>
-          <button className="btn" disabled title="No sender connected yet">Add to Campaign</button>
+          <button className="btn" disabled={busy || !d} onClick={() => outcome("reply_yes")} title="They replied YES / interested">Replied YES</button>
+          <button className="btn" disabled={busy || !d} onClick={() => outcome("meeting_booked")}>Walkthrough booked</button>
+          <button className="btn approve" disabled={busy || !d} onClick={() => outcome("closed_won")}>Won $</button>
+          <button className="btn" disabled={busy || !d} onClick={() => outcome("closed_lost")}>Lost</button>
           {o?.website && <a className="btn" href={o.website} target="_blank" rel="noreferrer">Website ↗</a>}
           {primary?.linkedin_url && <a className="btn" href={primary.linkedin_url} target="_blank" rel="noreferrer">LinkedIn ↗</a>}
           {note && <span className="small muted" role="status" style={{ alignSelf: "center" }}>{note}</span>}

@@ -154,3 +154,22 @@ describe("registry waterfall", async () => {
   });
   it("normalizes dates", () => { assert.equal(isoDate("2026-10-02T00:00:00Z"), "2026-10-02"); assert.equal(isoDate(""), null); });
 });
+
+describe("instantly events", async () => {
+  const { mapEventType, classifyReply } = await import("../lib/instantlyEvents");
+  it("maps webhook event types", () => {
+    assert.equal(mapEventType("email_sent"), "sent");
+    assert.equal(mapEventType("reply_received"), "reply");
+    assert.equal(mapEventType("email_bounced"), "bounce");
+    assert.equal(mapEventType("lead_unsubscribed"), "unsubscribe");
+    assert.equal(mapEventType("lead_meeting_booked"), "meeting_booked");
+    assert.equal(mapEventType("email_opened"), null);
+  });
+  it("honours 'no thanks' and spots YES", () => {
+    assert.equal(classifyReply("reply_received", "No thanks, we're all set"), "Unsubscribe");
+    assert.equal(classifyReply("reply_received", "Yes"), "Positive");
+    assert.equal(classifyReply("lead_interested", null), "Positive");
+    assert.equal(classifyReply("lead_not_interested", null), "Not Interested");
+    assert.equal(classifyReply("reply_received", "I'm out of the office until Monday"), "Out of Office");
+  });
+});

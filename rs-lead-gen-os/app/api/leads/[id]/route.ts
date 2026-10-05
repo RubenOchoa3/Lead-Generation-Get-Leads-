@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     sql("select * from research where organization_id = $1 order by researched_at desc limit 3", [id]),
     one("select * from approval_queue where organization_id = $1", [id]),
     sql("select found_at, source, was_duplicate from discovery_events where organization_id = $1 order by found_at", [id]),
-    sql("select event_type, occurred_at, campaign_id, reply_classification, reply_preview from outreach_events where organization_id = $1 order by occurred_at", [id]),
+    sql("select event_type, occurred_at, campaign_id, reply_classification, reply_preview, revenue from outreach_events where organization_id = $1 order by occurred_at", [id]),
     sql("select suppression_type, reason, created_at from suppression_list where organization_id = $1 or (domain is not null and lower(domain) = lower($2))", [id, (org as { domain?: string }).domain ?? ""]),
   ]);
   return NextResponse.json({ org, contacts, research, queue, discovery, outreach, suppression });

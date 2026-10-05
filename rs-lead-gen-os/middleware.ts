@@ -22,6 +22,8 @@ function validMachineToken(auth: string) {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === "/api/health") return NextResponse.next();
+  // Instantly can't send our auth header; this route checks its own ?token= (INSTANTLY_WEBHOOK_TOKEN).
+  if (pathname === "/api/webhooks/instantly") return NextResponse.next();
 
   const auth = req.headers.get("authorization") || "";
   if (auth.startsWith("Bearer ") && pathname.startsWith("/api/")) {
