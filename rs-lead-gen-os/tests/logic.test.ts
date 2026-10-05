@@ -181,6 +181,8 @@ describe("local-business focus", async () => {
     assert.equal(isLargeCompany("1001 to 5000"), true);
     assert.equal(isLargeCompany("501 to 1000"), false);
     assert.equal(isLargeCompany("11 to 50"), false);
+    assert.equal(isLargeCompany("11-50"), false);
+    assert.equal(isLargeCompany("1,001-5,000"), true);
     assert.equal(isLargeCompany(null), false);
   });
 });

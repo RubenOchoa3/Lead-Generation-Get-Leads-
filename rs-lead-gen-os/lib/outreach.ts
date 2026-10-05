@@ -18,7 +18,7 @@ export type PushResult = {
  */
 export const LOCAL_MAX_EMPLOYEES = 1000;
 export function isLargeCompany(employeeRange?: string | null) {
-  const min = parseInt((employeeRange || "").replace(/[^0-9 ]/g, " ").trim().split(/\s+/)[0] || "0", 10);
+  const min = parseInt((employeeRange || "").replace(/,/g, "").replace(/[^0-9 ]/g, " ").trim().split(/\s+/)[0] || "0", 10);
   return min > LOCAL_MAX_EMPLOYEES;
 }
 

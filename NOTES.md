@@ -2,6 +2,9 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-05 (latest)
+- Daily batch now draws from every lead already in the platform with a VALID primary email (incl. ones never queued), skipping rejected/suppressed/bounced/cooldown; Getlead search only tops up when short. /today shows how many are ready. Fixed employee-range parsing ("11-50", "1,001-5,000").
+
 ## 2026-10-05 (later)
 - Two Instantly campaigns, one email each, sending 8 AM–12 PM Pacific weekdays: "RS · Cycle 1 · Control · Local businesses" (90%) and "RS · Cycle 1 · Experiment · Big companies" (10%). Offer: free walkthrough + written plan, free first deep clean, first-contract discount, 24-hour fix guarantee; Calendly link; signed Ruben Ochoa, Owner.
 - Today's Send page (/today): nightly run builds the day's batch (90% local / 10% big, refilled from Getlead when short); owner reviews people + exact emails and clicks Approve & send. Weekly ramp 5→10→15→20→25 per mailbox, held if bounces ≥3% or complaints. Instantly timezone list has no Los_Angeles: using America/Dawson (= PDT); after Nov 1 shift the window an hour.

@@ -92,28 +92,47 @@ export async function applyRamp(date = pacificToday()) {
 
 type Candidate = { contact_id: string; organization_id: string };
 
-/** Leads that can go out today: reviewed or waiting, VALID email, not suppressed/bounced, not in a campaign within the cooldown. */
+/**
+ * Every lead already in the platform that could go out today: primary contact with a VALID email,
+ * not rejected/suppressed by the owner, not bounced/opted out, not in a campaign within the cooldown.
+ * Includes leads that never entered the Approval Queue (scored under the queue threshold) — the owner
+ * still approves each daily batch. Best scores first.
+ */
+const POOL_SQL = `
+       from organizations o
+       join contacts c on c.organization_id = o.id and c.is_primary
+       left join approval_queue q on q.organization_id = o.id
+      where coalesce(q.status, 'Needs Review') in ('Needs Review','Approved')`;
+const POOL_FILTERS = `
+        and c.email is not null and upper(coalesce(c.email_status,'')) = 'VALID'
+        and coalesce(o.business_type,'') <> 'Janitorial competitor'
+        and not exists (select 1 from suppression_list s where s.organization_id = o.id or (s.email is not null and lower(s.email) = lower(c.email)))
+        and not exists (select 1 from outreach_events e where e.contact_id = c.id and e.event_type in ('bounce','complaint','unsubscribe'))`;
+const ARM_EXPR = `(case when coalesce(substring(replace(coalesce(o.employee_range,''), ',', '') from '[0-9]+'), '0')::int > ${LOCAL_MAX_EMPLOYEES} then 'big' else 'local' end)`;
+
 async function candidates(arm: "local" | "big", limit: number, exclude: string[]) {
   if (limit <= 0) return [] as Candidate[];
   return sql<Candidate>(
-    `select c.id contact_id, o.id organization_id
-       from approval_queue q
-       join organizations o on o.id = q.organization_id
-       join contacts c on c.id = q.contact_id
-      where q.status in ('Needs Review','Approved')
-        and c.email is not null and upper(coalesce(c.email_status,'')) = 'VALID'
-        and coalesce(o.business_type,'') <> 'Janitorial competitor'
-        and (case when coalesce(nullif(regexp_replace(split_part(coalesce(o.employee_range,''),' ',1), '[^0-9]', '', 'g'), ''), '0')::int > $2
-                  then 'big' else 'local' end) = $1
-        and not exists (select 1 from suppression_list s where s.organization_id = o.id or (s.email is not null and lower(s.email) = lower(c.email)))
-        and not exists (select 1 from outreach_events e where e.contact_id = c.id and e.event_type in ('bounce','complaint','unsubscribe'))
-        and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $3))
+    `select c.id contact_id, o.id organization_id ${POOL_SQL}
+        ${POOL_FILTERS}
+        and ${ARM_EXPR} = $1
+        and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $2))
         and not exists (select 1 from daily_batch_items i join daily_batches b on b.id = i.batch_id where i.contact_id = c.id and b.status = 'ready')
-        and not (c.id = any($4::uuid[]))
+        and not (c.id = any($3::uuid[]))
       order by o.lead_score desc nulls last
-      limit $5`,
-    [arm, LOCAL_MAX_EMPLOYEES, DEFAULT_COOLDOWN_DAYS, exclude, limit],
+      limit $4`,
+    [arm, DEFAULT_COOLDOWN_DAYS, exclude, limit],
   );
+}
+
+/** How many existing leads are ready to email, by group (shown on Today's Send). */
+export async function poolCounts() {
+  const rows = await sql<{ arm: string; n: number }>(
+    `select ${ARM_EXPR} arm, count(*)::int n ${POOL_SQL} ${POOL_FILTERS}
+        and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $1))
+        and not exists (select 1 from daily_batch_items i join daily_batches b on b.id = i.batch_id where i.contact_id = c.id and b.status = 'ready')
+      group by 1`, [DEFAULT_COOLDOWN_DAYS]);
+  return { local: rows.find((r) => r.arm === "local")?.n ?? 0, big: rows.find((r) => r.arm === "big")?.n ?? 0 };
 }
 
 /** Top up the pool with a fresh Getlead search when there aren't enough leads waiting. */
