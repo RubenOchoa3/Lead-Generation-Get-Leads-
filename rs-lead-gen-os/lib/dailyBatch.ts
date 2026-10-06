@@ -150,6 +150,17 @@ async function fill(arm: "local" | "big", need: number, s: OutreachSettings) {
 }
 
 /** Build (once) today's batch. Safe to call again — returns the existing batch. */
+/** Leads added to this Instantly campaign in the last two weeks that it hasn't sent to yet. */
+async function waitingInCampaign(externalId: string) {
+  if (!externalId) return 0;
+  const r = await one<{ n: number }>(
+    `select count(*)::int n from campaign_contacts cc join campaigns cp on cp.id = cc.campaign_id
+      where cp.provider = 'Instantly' and cp.external_id = $1 and cc.added_at > now() - interval '14 days'
+        and not exists (select 1 from outreach_events e where e.contact_id = cc.contact_id and e.event_type in ('sent','bounce'))`,
+    [externalId]);
+  return r?.n ?? 0;
+}
+
 export async function buildDailyBatch(date = pacificToday()) {
   const existing = await one<{ id: string }>("select id from daily_batches where batch_date = $1", [date]);
   if (existing) return { batchId: existing.id, created: false };
@@ -159,13 +170,17 @@ export async function buildDailyBatch(date = pacificToday()) {
   const bigTarget = Math.round(target * s.big_share), localTarget = target - bigTarget;
   const picked: Record<"local" | "big", Candidate[]> = { local: [], big: [] };
   const notes: string[] = [];
-  for (const [arm, want] of [["local", localTarget], ["big", bigTarget]] as const) {
+  // Leads approved earlier that the campaign hasn't sent yet go out first, so only top up to today's cap.
+  const waiting = { local: await waitingInCampaign(s.local_campaign_id), big: await waitingInCampaign(s.big_campaign_id) };
+  if (waiting.local + waiting.big) notes.push(`${waiting.local + waiting.big} approved earlier still waiting to send (${waiting.local} local, ${waiting.big} big) — they go out first`);
+  for (const [arm, full] of [["local", localTarget], ["big", bigTarget]] as const) {
+    const want = Math.max(0, full - waiting[arm]);
     picked[arm] = await candidates(arm, want, []);
     if (picked[arm].length < want) {
       try { await fill(arm, want - picked[arm].length, s); } catch (e) { notes.push(`${arm} search: ${(e as Error).message}`); }
       picked[arm].push(...await candidates(arm, want - picked[arm].length, picked[arm].map((c) => c.contact_id)));
     }
-    if (picked[arm].length < want) notes.push(`only ${picked[arm].length}/${want} ${arm} leads available`);
+    if (want > 0 && picked[arm].length < want) notes.push(`only ${picked[arm].length}/${want} ${arm} leads available`);
   }
   const { rows: [b] } = await db.query<{ id: string }>(
     `insert into daily_batches (batch_date, target, per_mailbox, note) values ($1,$2,$3,$4) returning id`,
