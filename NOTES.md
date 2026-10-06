@@ -2,6 +2,13 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-06
+- Bounce rate 11.5% (15/130) on GetLeads "VALID" emails, mostly people who left big chains. Big-company campaign paused. Next: add an email verifier (owner to choose/pay) before raising volume.
+- Today only: mailboxes raised to 10/day, local campaign limit 120, gap 12 min, to send the 80 waiting leads; reverting to 5/day, 81, 18 min at 6:40 PM PT. Ramp to 10/mailbox stays on plan (Oct 13).
+- Fixed: "campaign completed without reply" was logged as a reply (27 fake rows + 28 orgs marked Replied — cleanup awaiting owner OK). Removed 6 old Instantly webhooks to the August app ("courteous-encouragement", still running on Railway — pause pending).
+- Daily batch subtracts leads still waiting in the campaign. /api/today/approve-today (cron secret) lets Claude approve when owner is away. Railway service "approve-today-once" failed to delete (timeouts) — remove it.
+- Instantly mailbox "day" resets 5 PM PT, so a window ending 6:30 PM spills into next day's quota; consider ending at 5 PM.
+
 ## 2026-10-05 (latest)
 - Daily batch now draws from every lead already in the platform with a VALID primary email (incl. ones never queued), skipping rejected/suppressed/bounced/cooldown; Getlead search only tops up when short. /today shows how many are ready. Fixed employee-range parsing ("11-50", "1,001-5,000").
 
