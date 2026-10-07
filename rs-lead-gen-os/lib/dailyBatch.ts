@@ -179,6 +179,13 @@ async function fill(arm: "local" | "big", need: number, s: OutreachSettings) {
   return summary.queued;
 }
 
+/** Throw away today's unapproved batch (e.g. after changing the target) so it can be rebuilt. Sent batches stay. */
+export async function discardReadyBatch(date = pacificToday()) {
+  await db.query(`delete from daily_batch_items where batch_id in (select id from daily_batches where batch_date = $1 and status = 'ready')`, [date]);
+  const r = await db.query(`delete from daily_batches where batch_date = $1 and status = 'ready'`, [date]);
+  return (r.rowCount ?? 0) > 0;
+}
+
 /** Build (once) today's batch. Safe to call again — returns the existing batch. */
 /** Leads added to this Instantly campaign in the last two weeks that it hasn't sent to yet. */
 async function waitingInCampaign(externalId: string) {

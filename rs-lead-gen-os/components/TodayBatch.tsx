@@ -14,9 +14,10 @@ export default function TodayBatch({ batchId, status, leads }: { batchId: string
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const count = useMemo(() => leads.filter((l) => !excluded.has(l.contact_id)).length, [leads, excluded]);
 
-  async function build() {
+  async function build(rebuild = false) {
+    if (rebuild && !window.confirm("Replace today's list with a fresh one? Nothing has been sent from it yet.")) return;
     setBusy("build"); setMsg(null);
-    const r = await fetch("/api/today/build", { method: "POST" }); const j = await r.json().catch(() => ({}));
+    const r = await fetch("/api/today/build", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rebuild }) }); const j = await r.json().catch(() => ({}));
     setBusy(null); if (!r.ok) setMsg({ ok: false, text: j.error ?? "Failed" }); else router.refresh();
   }
   async function send() {
@@ -26,12 +27,12 @@ export default function TodayBatch({ batchId, status, leads }: { batchId: string
     const j = await r.json().catch(() => ({})); setBusy(null);
     if (!r.ok) { setMsg({ ok: false, text: j.error ?? "Failed" }); return; }
     const parts = Object.entries(j.summary ?? {}).map(([arm, v]: any) => `${arm === "local" ? "Local" : "Big companies"}: ${v.added} added${v.blocked ? `, ${v.blocked} blocked` : ""}`);
-    setMsg({ ok: true, text: `Approved. ${parts.join(" · ")}. They send today between 8 AM and 12 PM (or the next weekday morning).` });
+    setMsg({ ok: true, text: `Approved. ${parts.join(" · ")}. They send today between 8 AM and 6:30 PM Pacific (or the next weekday).` });
     router.refresh();
   }
 
   if (!batchId) return (
-    <div className="actions"><button className="btn primary" disabled={!!busy} onClick={build}>{busy ? "Finding today's leads… (up to a few minutes)" : "Build today's batch now"}</button>
+    <div className="actions"><button className="btn primary" disabled={!!busy} onClick={() => build()}>{busy ? "Finding today's leads… (up to a few minutes)" : "Build today's batch now"}</button>
       {msg && <span className="small bad">{msg.text}</span>}</div>
   );
 
@@ -41,6 +42,7 @@ export default function TodayBatch({ batchId, status, leads }: { batchId: string
       {status === "ready" && (
         <div className="actions" style={{ marginBottom: 12 }}>
           <button className="btn primary" disabled={!!busy || count === 0} onClick={send}>{busy === "send" ? "Sending…" : `Approve & send ${count}`}</button>
+          <button className="btn" disabled={!!busy} onClick={() => build(true)}>{busy === "build" ? "Rebuilding… (up to a few minutes)" : "Rebuild list"}</button>
           <span className="small muted">Untick anyone you don&rsquo;t want emailed.</span>
           {msg && <span className={`small ${msg.ok ? "" : "bad"}`} role="status">{msg.text}</span>}
         </div>
