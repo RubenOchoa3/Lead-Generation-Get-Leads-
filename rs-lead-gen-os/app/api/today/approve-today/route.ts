@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hasMachineSecret } from "@/lib/auth";
 import { one, sql } from "@/lib/db";
-import { approveAndSend, pacificToday } from "@/lib/dailyBatch";
+import { approveAndSend, pacificToday, topUpToday } from "@/lib/dailyBatch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const body = z.object({ skipArms: z.array(z.enum(["local", "big"])).default([]) });
+const body = z.object({ skipArms: z.array(z.enum(["local", "big"])).default([]), topUp: z.number().int().min(1).max(200).optional() });
 
 /**
  * Approve today's batch on the owner's behalf when they ask Claude to (they're away from the dashboard).
@@ -17,6 +17,10 @@ export async function POST(req: Request) {
   if (!hasMachineSecret(req, "CRON_SECRET")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let b: z.infer<typeof body>;
   try { b = body.parse(await req.json().catch(() => ({}))); } catch (e) { return NextResponse.json({ error: String(e) }, { status: 400 }); }
+  if (b.topUp) {
+    try { return NextResponse.json({ ok: true, topUp: await topUpToday(b.topUp) }); }
+    catch (e) { return NextResponse.json({ error: String((e as Error).message ?? e) }, { status: 400 }); }
+  }
   const batch = await one<{ id: string; status: string }>("select id, status from daily_batches where batch_date = $1", [pacificToday()]);
   if (!batch) return NextResponse.json({ error: "No batch for today yet" }, { status: 404 });
   if (batch.status !== "ready") return NextResponse.json({ ok: true, skipped: `batch already ${batch.status}` });

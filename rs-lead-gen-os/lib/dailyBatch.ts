@@ -235,6 +235,30 @@ export async function buildDailyBatch(date = pacificToday()) {
   return { batchId: b.id, created: true };
 }
 
+/**
+ * Owner asked for more today: find up to `count` more local leads (topping up from Getlead if needed),
+ * approve them, add them to the local campaign and record them on today's batch.
+ */
+export async function topUpToday(count: number) {
+  const s = await getOutreachSettings();
+  const date = pacificToday();
+  const batch = await one<{ id: string }>("select id from daily_batches where batch_date = $1", [date]);
+  if (!batch) throw new Error("No batch for today yet");
+  const area = areaOf(s);
+  const picked = await candidates("local", count, [], area);
+  if (picked.length < count) {
+    await fill("local", count - picked.length, s);
+    picked.push(...await candidates("local", count - picked.length, picked.map((c) => c.contact_id), area));
+  }
+  for (const c of picked) {
+    await db.query(`insert into daily_batch_items (batch_id, contact_id, organization_id, arm) values ($1,$2,$3,'local') on conflict do nothing`, [batch.id, c.contact_id, c.organization_id]);
+    await decide(db, c.organization_id, "approve", { by: "owner (daily top-up)" });
+  }
+  if (!picked.length) return { found: 0, added: 0 };
+  const r = await pushApprovedToCampaign(db, instantly, s.local_campaign_id, { dryRun: false, contactIds: picked.map((c) => c.contact_id) });
+  return { found: picked.length, added: r.added, blocked: r.blocked.length };
+}
+
 /** Owner approved: approve each lead, then add them to the right campaign (they send in the next window). */
 export async function approveAndSend(batchId: string, excludeContactIds: string[] = []) {
   const batch = await one<{ id: string; status: string }>("select id, status from daily_batches where id = $1", [batchId]);
