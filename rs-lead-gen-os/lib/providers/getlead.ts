@@ -55,6 +55,14 @@ function yearOf(v: string | null) {
   return Number.isFinite(y) && y > 0 ? y : null;
 }
 
+/** Short column names the REST API now returns (Oct 2026) → the canonical names this mapper reads. */
+const COLUMN_ALIASES: Record<string, keyof GetleadRow> = {
+  co_name: "company_name", org_domain: "company_domain", co_website: "company_website",
+  current_company_linkedin_url: "company_linkedin_url", co_contact_info_json: "company_contact_info_json",
+  linkedin_employee_count: "linkedin_employee_count_exact", current_company_industry: "company_industry",
+  cellphone: "mobile_phone", current_seniority: "seniority_level", co_founded: "company_founded_year",
+};
+
 /** "Work Email" → "work_email": the REST API may key rows by display label instead of canonical name. */
 const canonicalKey = (k: string) => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
@@ -63,6 +71,8 @@ export function mapGetleadRow(input: GetleadRow): ProspectInput | null {
   for (const [k, v] of Object.entries(input)) {
     const ck = canonicalKey(k) as keyof GetleadRow;
     if (row[ck] === undefined) row[ck] = v;
+    const alias = COLUMN_ALIASES[ck];
+    if (alias && row[alias] === undefined) row[alias] = v;
   }
   const companyName = pick(row, "company_name", "Company Name");
   if (!companyName) return null; // a contact without an employer is not a facility lead

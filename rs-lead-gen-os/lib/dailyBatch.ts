@@ -4,7 +4,7 @@ import { runLeadSearch } from "@/lib/leadRun";
 import { buildGetleadFilters } from "@/lib/searchFilters";
 import { DEFAULT_COOLDOWN_DAYS, LOCAL_MAX_EMPLOYEES, pushApprovedToCampaign } from "@/lib/outreach";
 import { getleadConfigured } from "@/lib/providers/getlead";
-import { instantly, instantlyConfigured, resumeIfCompleted, setAccountDailyLimit, setCampaignDailyLimit } from "@/lib/providers/instantly";
+import { campaignWaiting, instantly, instantlyConfigured, resumeIfCompleted, setAccountDailyLimit, setCampaignDailyLimit } from "@/lib/providers/instantly";
 
 /**
  * Daily send batch + weekly ramp.
@@ -190,6 +190,8 @@ export async function discardReadyBatch(date = pacificToday()) {
 /** Leads added to this Instantly campaign in the last two weeks that it hasn't sent to yet. */
 async function waitingInCampaign(externalId: string) {
   if (!externalId) return 0;
+  // Instantly knows exactly who is still unsent; our own records miss leads it skipped as duplicates.
+  if (instantlyConfigured()) { try { return await campaignWaiting(externalId); } catch { /* fall back to our records */ } }
   const r = await one<{ n: number }>(
     `select count(*)::int n from campaign_contacts cc join campaigns cp on cp.id = cc.campaign_id
       where cp.provider = 'Instantly' and cp.external_id = $1 and cc.added_at > now() - interval '14 days'
@@ -209,7 +211,7 @@ export async function buildDailyBatch(date = pacificToday()) {
   const picked: Record<"local" | "big", Candidate[]> = { local: [], big: [] };
   const notes: string[] = [];
   // Leads approved earlier that the campaign hasn't sent yet go out first, so only top up to today's cap.
-  const waiting = { local: await waitingInCampaign(s.local_campaign_id), big: await waitingInCampaign(s.big_campaign_id) };
+  const waiting = { local: await waitingInCampaign(s.local_campaign_id), big: s.big_paused ? 0 : await waitingInCampaign(s.big_campaign_id) };
   if (waiting.local + waiting.big) notes.push(`${waiting.local + waiting.big} approved earlier still waiting to send (${waiting.local} local, ${waiting.big} big) — they go out first`);
   for (const [arm, full] of [["local", localTarget], ["big", bigTarget]] as const) {
     const want = Math.max(0, full - waiting[arm]);

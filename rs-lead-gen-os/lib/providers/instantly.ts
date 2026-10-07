@@ -57,6 +57,15 @@ export async function getCampaignDetail(id: string) {
   return call<InstantlyCampaignDetail>(`/api/v2/campaigns/${encodeURIComponent(id)}`);
 }
 
+/** Leads loaded in a campaign that it hasn't emailed yet (Instantly's own count). */
+export async function campaignWaiting(id: string) {
+  const r = await call<Array<{ leads_count?: number; contacted_count?: number; bounced_count?: number }>>(
+    `/api/v2/campaigns/analytics?id=${encodeURIComponent(id)}`);
+  const a = Array.isArray(r) ? r[0] : undefined;
+  if (!a) throw new Error("no analytics");
+  return Math.max(0, (a.leads_count ?? 0) - (a.contacted_count ?? 0));
+}
+
 /** Sending caps only — used by the weekly ramp. Never changes campaign status. */
 export async function setAccountDailyLimit(email: string, dailyLimit: number) {
   await call(`/api/v2/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ daily_limit: dailyLimit }) });

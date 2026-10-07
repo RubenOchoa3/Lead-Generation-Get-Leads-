@@ -75,6 +75,16 @@ describe("getlead mapping + scoring", () => {
     assert.equal(p.contact?.emailStatus, "VALID");
     assert.equal(classifyBusiness(p.company.naicsCodes, p.company.industry), "Dental office");
   });
+  it("maps the short column names the REST API returns", () => {
+    const p = mapGetleadRow({ full_name: "Ana Ruiz", work_email: "ana@acme.com", email_status: "VALID", co_name: "Acme Dental",
+      org_domain: "acme.com", co_website: "https://acme.com", current_company_linkedin_url: "https://www.linkedin.com/company/acme",
+      cellphone: "+1 661-555-0100", current_seniority: "manager", contact_city: "Bakersfield", company_hq_city: "Bakersfield" } as never)!;
+    assert.equal(p.company.name, "Acme Dental");
+    assert.equal(p.company.domain, "acme.com");
+    assert.equal(p.contact?.email, "ana@acme.com");
+    assert.equal(p.contact?.phone, "+1 661-555-0100");
+    assert.equal(p.company.linkedinUrl, "https://www.linkedin.com/company/acme");
+  });
   it("maps rows keyed by current display labels", () => {
     const p = mapGetleadRow({ "Company Name": "Label Co", "Work Email": "a@label.example", "Email Status": "VALID",
       "Current Title": "Property Manager", "Main Industry": "Real Estate", "Contact State": "California" } as never)!;
