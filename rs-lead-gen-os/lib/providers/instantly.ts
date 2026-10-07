@@ -61,6 +61,16 @@ export async function getCampaignDetail(id: string) {
 export async function setAccountDailyLimit(email: string, dailyLimit: number) {
   await call(`/api/v2/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ daily_limit: dailyLimit }) });
 }
+/**
+ * A one-email campaign turns "Completed" once every loaded lead has been sent. After the owner approves
+ * a new batch, resume it so the new leads go out (never touches a paused campaign).
+ */
+export async function resumeIfCompleted(id: string) {
+  const c = await getCampaignDetail(id);
+  if (c.status !== 3) return false;
+  await call(`/api/v2/campaigns/${encodeURIComponent(id)}/activate`, { method: "POST", body: "{}" });
+  return true;
+}
 export async function setCampaignDailyLimit(id: string, dailyLimit: number) {
   await call(`/api/v2/campaigns/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ daily_limit: dailyLimit }) });
 }

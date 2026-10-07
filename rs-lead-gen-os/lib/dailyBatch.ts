@@ -4,7 +4,7 @@ import { runLeadSearch } from "@/lib/leadRun";
 import { buildGetleadFilters } from "@/lib/searchFilters";
 import { DEFAULT_COOLDOWN_DAYS, LOCAL_MAX_EMPLOYEES, pushApprovedToCampaign } from "@/lib/outreach";
 import { getleadConfigured } from "@/lib/providers/getlead";
-import { instantly, instantlyConfigured, setAccountDailyLimit, setCampaignDailyLimit } from "@/lib/providers/instantly";
+import { instantly, instantlyConfigured, resumeIfCompleted, setAccountDailyLimit, setCampaignDailyLimit } from "@/lib/providers/instantly";
 
 /**
  * Daily send batch + weekly ramp.
@@ -21,7 +21,17 @@ export type OutreachSettings = {
   big_share: number;         // 0.10 = 10% to big companies
   applied_per_mailbox?: number;
   fill_offsets?: { local?: number; big?: number };
+  /** Only email companies based in these cities (empty = anywhere in California). */
+  target_hq_cities?: string[];
+  /** Big-company experiment paused: the whole daily cap goes to local businesses. */
+  big_paused?: boolean;
+  /** Which target the saved fill offsets belong to; a new target restarts paging from 0. */
+  fill_target_key?: string;
 };
+
+/** Kern County towns — companies headquartered here are truly local to R&S. */
+export const KERN_CITIES = ["Bakersfield", "Delano", "Tehachapi", "Ridgecrest", "Wasco", "Shafter", "Arvin", "McFarland", "Taft",
+  "California City", "Lamont", "Frazier Park", "Mojave", "Lake Isabella", "Rosamond", "Oildale", "Kernville", "Buttonwillow", "Maricopa", "Boron"];
 
 export const DEFAULT_OUTREACH: OutreachSettings = {
   local_campaign_id: "65e5efa2-4d18-4f38-a632-9d1a292369e2",
@@ -30,7 +40,16 @@ export const DEFAULT_OUTREACH: OutreachSettings = {
   ramp: [5, 10, 15, 20, 25],
   mailboxes: 18,
   big_share: 0.1,
+  target_hq_cities: KERN_CITIES,
+  big_paused: true,
 };
+
+const areaOf = (s: OutreachSettings) => (s.target_hq_cities ?? []).map((c) => c.toLowerCase());
+/** Daily split: everything to local while the big-company test is paused. */
+export function armTargets(s: OutreachSettings, total: number) {
+  const big = s.big_paused ? 0 : Math.round(total * s.big_share);
+  return { local: total - big, big };
+}
 
 export async function getOutreachSettings(): Promise<OutreachSettings> {
   const row = await one<{ value: Partial<OutreachSettings> }>("select value from settings where key = 'outreach'");
@@ -74,7 +93,7 @@ export async function applyRamp(date = pacificToday()) {
   const prev = s.applied_per_mailbox ?? s.ramp[0];
   const perMailbox = planned > prev && !health.healthy ? prev : planned;
   const total = perMailbox * s.mailboxes;
-  const big = Math.round(total * s.big_share);
+  const { big } = armTargets(s, total);
   const result = { week, planned, perMailbox, total, local: total - big, big, health, changed: perMailbox !== s.applied_per_mailbox, errors: [] as string[] };
   if (!result.changed || !instantlyConfigured()) return result;
   const camps = await instantly.listCampaigns();
@@ -83,7 +102,7 @@ export async function applyRamp(date = pacificToday()) {
     if (/@rscentralvalleycleaning\.com$/i.test(email)) continue; // main domain is never a sender
     try { await setAccountDailyLimit(email, perMailbox); } catch (e) { result.errors.push(`${email}: ${(e as Error).message}`); }
   }
-  try { await setCampaignDailyLimit(s.local_campaign_id, result.local); await setCampaignDailyLimit(s.big_campaign_id, result.big); }
+  try { await setCampaignDailyLimit(s.local_campaign_id, result.local); if (result.big > 0) await setCampaignDailyLimit(s.big_campaign_id, result.big); }
   catch (e) { result.errors.push(`campaign limits: ${(e as Error).message}`); }
   if (!result.errors.length) await saveOutreachSettings({ ...s, applied_per_mailbox: perMailbox });
   console.log(`[ramp] ${JSON.stringify({ ...result, health: { ...health } })}`);
@@ -110,7 +129,9 @@ const POOL_FILTERS = `
         and not exists (select 1 from outreach_events e where e.contact_id = c.id and e.event_type in ('bounce','complaint','unsubscribe'))`;
 const ARM_EXPR = `(case when coalesce(substring(replace(coalesce(o.employee_range,''), ',', '') from '[0-9]+'), '0')::int > ${LOCAL_MAX_EMPLOYEES} then 'big' else 'local' end)`;
 
-async function candidates(arm: "local" | "big", limit: number, exclude: string[]) {
+const AREA_SQL = (n: number) => `and (cardinality($${n}::text[]) = 0 or lower(coalesce(o.city,'')) = any($${n}::text[]))`;
+
+async function candidates(arm: "local" | "big", limit: number, exclude: string[], area: string[] = []) {
   if (limit <= 0) return [] as Candidate[];
   return sql<Candidate>(
     `select c.id contact_id, o.id organization_id ${POOL_SQL}
@@ -119,27 +140,36 @@ async function candidates(arm: "local" | "big", limit: number, exclude: string[]
         and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $2))
         and not exists (select 1 from daily_batch_items i join daily_batches b on b.id = i.batch_id where i.contact_id = c.id and b.status = 'ready')
         and not (c.id = any($3::uuid[]))
+        ${AREA_SQL(5)}
       order by o.lead_score desc nulls last
       limit $4`,
-    [arm, DEFAULT_COOLDOWN_DAYS, exclude, limit],
+    [arm, DEFAULT_COOLDOWN_DAYS, exclude, limit, area],
   );
 }
 
 /** How many existing leads are ready to email, by group (shown on Today's Send). */
 export async function poolCounts() {
+  const area = areaOf(await getOutreachSettings());
   const rows = await sql<{ arm: string; n: number }>(
     `select ${ARM_EXPR} arm, count(*)::int n ${POOL_SQL} ${POOL_FILTERS}
         and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $1))
         and not exists (select 1 from daily_batch_items i join daily_batches b on b.id = i.batch_id where i.contact_id = c.id and b.status = 'ready')
-      group by 1`, [DEFAULT_COOLDOWN_DAYS]);
+        ${AREA_SQL(2)}
+      group by 1`, [DEFAULT_COOLDOWN_DAYS, area]);
   return { local: rows.find((r) => r.arm === "local")?.n ?? 0, big: rows.find((r) => r.arm === "big")?.n ?? 0 };
 }
 
 /** Top up the pool with a fresh Getlead search when there aren't enough leads waiting. */
 async function fill(arm: "local" | "big", need: number, s: OutreachSettings) {
   if (!getleadConfigured() || need <= 0) return 0;
-  const filters: Record<string, unknown> = buildGetleadFilters({ state: "California", cities: [] });
+  const area = s.target_hq_cities ?? [];
+  // Targeted area: every company based there with a verified email (no industry/title filter — any business needs cleaning).
+  const filters: Record<string, unknown> = area.length
+    ? { countries: ["United States"], states: ["California"], headquarters_cities: area, email_status: ["VALID"], employees_max: LOCAL_MAX_EMPLOYEES }
+    : buildGetleadFilters({ state: "California", cities: [] });
   if (arm === "big") { delete filters.employees_max; filters.employees_min = LOCAL_MAX_EMPLOYEES + 1; }
+  const key = area.join("|");
+  if (s.fill_target_key !== key) { s.fill_offsets = {}; s.fill_target_key = key; }
   const startOffset = s.fill_offsets?.[arm] ?? 0;
   const { summary, nextOffset } = await runLeadSearch(
     { filters, requestedCount: Math.min(500, need * 3), queueThreshold: 50, requireVerifiedEmail: true, startOffset },
@@ -167,7 +197,8 @@ export async function buildDailyBatch(date = pacificToday()) {
   const s = await getOutreachSettings();
   const perMailbox = s.applied_per_mailbox ?? rampStep(s, date).perMailbox;
   const target = perMailbox * s.mailboxes;
-  const bigTarget = Math.round(target * s.big_share), localTarget = target - bigTarget;
+  const { local: localTarget, big: bigTarget } = armTargets(s, target);
+  const area = areaOf(s);
   const picked: Record<"local" | "big", Candidate[]> = { local: [], big: [] };
   const notes: string[] = [];
   // Leads approved earlier that the campaign hasn't sent yet go out first, so only top up to today's cap.
@@ -175,10 +206,10 @@ export async function buildDailyBatch(date = pacificToday()) {
   if (waiting.local + waiting.big) notes.push(`${waiting.local + waiting.big} approved earlier still waiting to send (${waiting.local} local, ${waiting.big} big) — they go out first`);
   for (const [arm, full] of [["local", localTarget], ["big", bigTarget]] as const) {
     const want = Math.max(0, full - waiting[arm]);
-    picked[arm] = await candidates(arm, want, []);
+    picked[arm] = await candidates(arm, want, [], area);
     if (picked[arm].length < want) {
       try { await fill(arm, want - picked[arm].length, s); } catch (e) { notes.push(`${arm} search: ${(e as Error).message}`); }
-      picked[arm].push(...await candidates(arm, want - picked[arm].length, picked[arm].map((c) => c.contact_id)));
+      picked[arm].push(...await candidates(arm, want - picked[arm].length, picked[arm].map((c) => c.contact_id), area));
     }
     if (want > 0 && picked[arm].length < want) notes.push(`only ${picked[arm].length}/${want} ${arm} leads available`);
   }
@@ -211,7 +242,11 @@ export async function approveAndSend(batchId: string, excludeContactIds: string[
     if (!ids.length) continue;
     const r = await pushApprovedToCampaign(db, instantly, arm === "local" ? s.local_campaign_id : s.big_campaign_id,
       { dryRun: false, contactIds: ids, allowLarge: arm === "big" });
-    summary[arm] = { added: r.added, blocked: r.blocked.length, skippedBySender: r.skippedBySender };
+    let resumed = false;
+    if (r.added > 0 && arm === "local") {
+      try { resumed = await resumeIfCompleted(s.local_campaign_id); } catch (e) { console.error(`[daily-batch] resume local campaign: ${(e as Error).message}`); }
+    }
+    summary[arm] = { added: r.added, blocked: r.blocked.length, skippedBySender: r.skippedBySender, ...(resumed ? { resumed } : {}) };
   }
   await db.query(`update daily_batches set status = 'sent', sent_at = now(), sent_summary = $2 where id = $1`, [batchId, JSON.stringify(summary)]);
   return summary;

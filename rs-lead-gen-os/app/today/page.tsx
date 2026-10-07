@@ -43,7 +43,7 @@ export default async function Today() {
         <div className="grid g-4">
           <Kpi label="Today's leads" value={leads.length} sub={batch ? `target ${batch.target}` : "not built yet"} />
           <Kpi label="Local businesses" value={n("local")} sub="90% — main email" />
-          <Kpi label="Big companies (test)" value={n("big")} sub="10% — experiment email" />
+          <Kpi label="Big companies (test)" value={n("big")} sub={s.big_paused ? "paused — all sends go to local" : "10% — experiment email"} />
           <Kpi label={`Week ${week} sending cap`} value={cap} sub={`${s.applied_per_mailbox ?? perMailbox}/mailbox × ${s.mailboxes} · raises weekly if healthy`} />
         </div>
         <p className="small muted" style={{ margin: "8px 0" }}>
