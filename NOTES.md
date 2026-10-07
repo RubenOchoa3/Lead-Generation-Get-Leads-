@@ -2,6 +2,11 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-07
+- Targeting switched to Kern County (company HQ in Kern towns, verified email, ≤1,000 employees); big-company campaign paused, all 90/day to local. 89 Kern leads sent today; early bounces ~2.8% (was ~10%).
+- Fixed: GetLeads REST now returns short column names (co_name, org_domain…) — rows were being dropped. Waiting count now from Instantly.
+- Owner to do: new Instantly API key with all scopes → Railway web INSTANTLY_API_KEY (current key can't resume campaigns or change limits). Railway service "approve-today-once" still to delete.
+
 ## 2026-10-06
 - Bounce rate 11.5% (15/130) on GetLeads "VALID" emails, mostly people who left big chains. Big-company campaign paused. Next: add an email verifier (owner to choose/pay) before raising volume.
 - Today only: mailboxes raised to 10/day, local campaign limit 120, gap 12 min, to send the 80 waiting leads; reverting to 5/day, 81, 18 min at 6:40 PM PT. Ramp to 10/mailbox stays on plan (Oct 13).
