@@ -1,11 +1,15 @@
 ---
 name: cold-email-playbook
-description: R&S Central Valley Cleaning's "boring" lead-to-profit cold email playbook — one email per person per 30–60 day cycle, the 3-part offer/proof/reply-YES copy recipe, and 70/20/10 testing judged by closed revenue. Use whenever writing, reviewing, launching, scaling or analyzing a cold email campaign, picking leads for a send, or deciding what to test next.
+description: R&S Central Valley Cleaning's cold email playbook — building the offer ($100M Offers value equation and offer stacking), short them-first copy with a give-first gift and soft CTA, one email per person per cycle, and 70/20/10 testing judged by closed revenue. Use whenever writing, reviewing, launching, scaling or analyzing a cold email campaign, building or changing the offer, picking leads for a send, or deciding what to test next.
 ---
 
 # Cold Email Playbook (lead-to-profit)
 
-Source: "This Cold Email Strategy is Boring, But It Made $999,750" (owner's PDF guide, Oct 2026).
+Sources: "This Cold Email Strategy is Boring, But It Made $999,750" (owner's PDF guide, Oct 2026);
+the owner's NotebookLM manual built from Hormozi, Instantly, Leo Moore, Kirke Männik and Jayden
+Leilua → digest in `references/cold-email-manual.md` (rules, frameworks, verbatim examples, reply
+scripts, checklist); Alex Hormozi's *$100M Offers* method → `references/100m-offers.md`.
+**Read both references before writing or changing any email or offer.**
 Living results log: `docs/campaign-learnings.md` — read it first, append to it after every review.
 
 ## 1. What "winning" means
@@ -17,7 +21,8 @@ Living results log: `docs/campaign-learnings.md` — read it first, append to it
 
 ## 2. Cadence (never nag)
 - **One email per person per cycle.** No 4–5 step follow-up sequences. Each Instantly campaign has
-  exactly one step.
+  exactly one step. (Note: the NotebookLM sources recommend 3–5 value-add touches 2–3 days apart.
+  That conflicts with this rule; it stays one email until the owner decides otherwise.)
 - Same person is never added to the same campaign twice. They can get a *new* email in a *new*
   campaign only after the cooldown (dashboard rule: 45 days; allowed range 30–60).
 - Map the whole market (TAM): Getlead searches + New Businesses registry waterfall + call/visit list.
@@ -30,31 +35,37 @@ Living results log: `docs/campaign-learnings.md` — read it first, append to it
   companies. Locally-owned franchises (Home Instead, H&R Block offices) are fine.
 - Email every available approved target once per cycle; volume is limited only by mailbox caps.
 
-## 3. Copy recipe (every email must pass all three)
-1. **Clear value offer / incentive** in the first lines — what R&S does + a concrete reason to talk
-   (e.g. free walkthrough with a written room-by-room cleaning scope they keep either way).
-2. **Social proof** — real R&S clients or results only. Never invent client names, logos, numbers
-   or testimonials. If the owner hasn't supplied proof, say so and leave a placeholder for him.
-3. **Frictionless CTA** — "Just reply YES and I'll send times for the walkthrough." One ask, no links.
+## 3. Copy recipe
+**Offer first (≈80% of results).** Build it with `references/100m-offers.md` before touching copy:
+value equation, stack of give-first pieces, a guarantee R&S can honor, true scarcity/urgency only,
+and dollar values that match R&S's real prices.
 
-Plus: plain text, short (under ~120 words), no "I researched your LinkedIn" gimmicks or AI
-flattery, sign as **Ruben Ochoa**, and keep the CAN-SPAM footer (physical address
+Every email must pass:
+1. **Them first, only them** — open on their building/role/pain, never "My name is…". If the line
+   could go to 1,000 businesses unchanged, rewrite it.
+2. **One give-first offer, framed as the outcome** — lead with the single strongest gift (free deep
+   clean / free walkthrough + written plan), plus one risk-reversal line (24h re-clean guarantee,
+   no long contract). Outcome language ("so that" ladder), not a list of chores.
+3. **Honest proof** — local owner who walks every site, fixed written price, guarantee. Real R&S
+   clients or results only; never invent names, numbers, testimonials or observations.
+4. **One soft CTA** answerable in 3 seconds — "Reply yes and tell me what day works" / "Mind if I
+   send it over?". No meeting ask; avoid links in the first email.
+5. **Short** — 50–80 words (≤ 120 max), 1–2 sentence paragraphs, plain text; lowercase peer-style
+   subject that matches the body (`free deep clean for {{companyName}}`, `janitorial question`).
+
+Plus: no "I researched your LinkedIn" gimmicks or AI flattery, sign as **Ruben Ochoa**, and keep
+the CAN-SPAM footer (physical address
 5401 Business Park South, Suite 208, Bakersfield, CA 93309 + "reply no thanks and I won't email
 again"). Replies of "no thanks"/unsubscribe are auto-suppressed by the Instantly webhook.
 
-**Making the offer irresistible ($100M Offers value equation)** —
-Value = (Dream outcome × Perceived likelihood) ÷ (Time delay × Effort & sacrifice). For a facility
-manager: dream outcome = a building that's always clean without chasing the janitor; likelihood =
-real local proof + a guarantee; time delay = walkthrough this week, can start within days; effort =
-we write the scope, fixed monthly price, one reply to start. Stack bonuses the buyer values (free
-written room-by-room scope they keep; first-month extras) and offer a guarantee R&S can actually
-honor (e.g. missed item re-cleaned within 24 hours). Only claim scarcity/urgency that is true.
-
 **Copy review checklist** (answer each yes/no before any copy goes live):
-- [ ] Offer is stated in the first 2 sentences and is specific
+- [ ] Opener is about them and passes "only them"; no self-intro
+- [ ] One give-first offer in the first 2 sentences, outcome-framed, every term true and approved
+- [ ] Any dollar value matches R&S's real prices for the building size named
 - [ ] Proof is real and attributable (or explicitly marked TODO for the owner)
-- [ ] CTA is "reply YES" (or equally effortless) and there is only one
-- [ ] No follow-up steps in the campaign
+- [ ] One soft CTA, no meeting ask, no link (or one plain link at most)
+- [ ] ≤ 80–120 words, short paragraphs, lowercase subject that matches the body
+- [ ] Follow-up steps only if the owner has approved a sequence (default: none)
 - [ ] Footer address + opt-out line present; sender name Ruben Ochoa
 - [ ] Merge fields have fallbacks (`{{firstName | there}}`)
 
