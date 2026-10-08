@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Db } from "@/lib/db";
 import { notifyOwner } from "@/lib/notify";
+import { autoReplyDelayMs, claimAutoReply, pickAutoReply, sendAutoReply, type AutoReplyJob } from "@/lib/autoReply";
 
 /** "no thanks" / unsubscribe-style replies honour the opt-out line in every email. */
 export const OPT_OUT = /\b(no thanks|no thank you|not interested|unsubscribe|remove me|stop emailing|take me off|do not (contact|email))\b/i;
@@ -71,19 +72,50 @@ export async function recordInstantlyEvent(db: Db, e: InstantlyEvent) {
       [ct?.organization_id ?? null, email, suppress, suppress === "opt_out" ? "Asked not to be emailed" : "Email bounced"],
     );
   }
-  // Hot lead → phone alert right away (speed to YES wins the deal).
-  if (classification === "Positive" || type === "meeting_booked") {
-    const { rows: [who] } = await db.query<{ company_name: string | null; full_name: string | null; phone: string | null }>(
-      `select o.company_name, c.full_name, coalesce(c.phone, o.main_phone) phone from contacts c join organizations o on o.id = c.organization_id where c.id = $1`,
+  // Every real reply: answer it within ~1 minute (once per lead) and ping the owner's phone.
+  const isAuto = /auto_reply|out_of_office/i.test(rawType) || classification === "Out of Office";
+  let auto: "scheduled" | "sent" | "failed" | "already answered" | "not auto-answered" | null = null;
+  if ((type === "reply" && !isAuto) || type === "meeting_booked") {
+    const { rows: [who] } = await db.query<{ company_name: string | null; full_name: string | null; first_name: string | null; phone: string | null }>(
+      `select o.company_name, c.full_name, c.first_name, coalesce(c.phone, o.main_phone) phone from contacts c join organizations o on o.id = c.organization_id where c.id = $1`,
       [ct?.id ?? null]);
-    const name = who?.full_name?.split(" ")[0] ?? email.split("@")[0];
-    const company = who?.company_name ?? s(e.company_name) ?? email.split("@")[1] ?? "";
+    const firstName = who?.first_name ?? s(e.firstName) ?? who?.full_name?.split(" ")[0] ?? null;
+    const name = firstName ?? email.split("@")[0];
+    const company = who?.company_name ?? s(e.companyName) ?? s(e.company_name) ?? email.split("@")[1] ?? "";
+    const phone = who?.phone ?? s(e.phone);
+
+    if (type === "reply") {
+      const kind = pickAutoReply(rawType, classification, replyText);
+      const replyEmailId = s(e.email_id), eaccount = s(e.email_account);
+      if (!kind || !replyEmailId || !eaccount || !email) auto = "not auto-answered";
+      else {
+        const job: AutoReplyJob = { leadEmail: email, campaignId: s(e.campaign_id) ?? "", replyEmailId, eaccount,
+          subject: s(e.reply_subject) ?? s(e.email_subject) ?? "Re: your building", firstName, kind };
+        if (!(await claimAutoReply(db, job))) auto = "already answered";
+        else {
+          const run = async () => {
+            const r = await sendAutoReply(db, job);
+            if (!r.ok) await notifyOwner("Auto-reply failed - answer this one yourself", `${name} at ${company}${phone ? ` - ${phone}` : ""}. ${r.error}`, { priority: 5, tags: "warning" });
+            return r.ok;
+          };
+          const delay = autoReplyDelayMs();
+          if (delay === 0) auto = (await run()) ? "sent" : "failed";
+          else { auto = "scheduled"; setTimeout(() => { void run(); }, delay); }
+        }
+      }
+    }
+
+    const hot = classification === "Positive" || type === "meeting_booked";
+    const cold = classification === "Unsubscribe" || classification === "Not Interested";
+    const snippet = (replyText ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
+    const autoNote = auto === "scheduled" || auto === "sent" ? "Auto-reply sent within ~1 min." : auto === "already answered" ? "Already auto-answered earlier." : cold ? "Not auto-answered (opted out)." : "Not auto-answered - reply yourself.";
     await notifyOwner(
-      type === "meeting_booked" ? "Walkthrough booked!" : "Hot lead: replied YES / interested",
-      `${name} at ${company}${who?.phone ? ` - ${who.phone}` : ""}. Reply fast from Instantly or your inbox.`,
-      { priority: 5, tags: "fire", click: process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, "")}/replies` : undefined },
+      type === "meeting_booked" ? "Walkthrough booked!" : hot ? "Hot lead replied!" : cold ? "Reply: not interested" : "New reply from a lead",
+      `${name} at ${company}${phone ? ` - ${phone}` : ""}${snippet ? `: "${snippet}"` : ""}. ${type === "meeting_booked" ? "" : autoNote}`.trim(),
+      { priority: hot ? 5 : cold ? 3 : 4, tags: hot ? "fire" : cold ? "no_entry" : "email",
+        click: process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, "")}/replies` : undefined },
     );
   }
   if (ct && type === "reply") await db.query(`update organizations set pipeline_status = 'Replied', updated_at = now() where id = $1 and pipeline_status in ('New','Qualified','Approved','In Campaign')`, [ct.organization_id]);
-  return { recorded: type, classification, matchedContact: !!ct, matchedCampaign: !!camp, suppressed: suppress };
+  return { recorded: type, classification, matchedContact: !!ct, matchedCampaign: !!camp, suppressed: suppress, autoReply: auto };
 }

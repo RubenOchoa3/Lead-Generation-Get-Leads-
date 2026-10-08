@@ -220,3 +220,32 @@ describe("daily batch helpers", async () => {
     assert.equal(htmlToText("<div>Hi</div><div><br /></div><div>R&amp;S<br />Owner</div>"), "Hi\n\nR&S\nOwner");
   });
 });
+
+describe("auto-reply to cold email replies", async () => {
+  const { pickAutoReply, nextTwoWeekdays, autoReplyText } = await import("../lib/autoReply");
+  it("books a walkthrough on yes/interested, acknowledges questions", () => {
+    assert.equal(pickAutoReply("reply_received", "Positive", "Yes please"), "book");
+    assert.equal(pickAutoReply("reply_received", "Other", "Sure, when can you come by?"), "book");
+    assert.equal(pickAutoReply("reply_received", "Other", "fix it"), "book");
+    assert.equal(pickAutoReply("reply_received", "Other", "How much do you charge for 3,000 sq ft?"), "ack");
+    assert.equal(pickAutoReply("lead_interested", "Positive", null), "book");
+  });
+  it("never answers auto-replies, opt-outs or not-interested", () => {
+    assert.equal(pickAutoReply("auto_reply_received", "Out of Office", "Out of the office until Monday"), null);
+    assert.equal(pickAutoReply("reply_received", "Unsubscribe", "No thanks"), null);
+    assert.equal(pickAutoReply("lead_not_interested", "Not Interested", null), null);
+    assert.equal(pickAutoReply("reply_received", "Other", "   "), null);
+  });
+  it("offers the next two weekdays in Pacific time", () => {
+    assert.deepEqual(nextTwoWeekdays(new Date("2026-10-09T18:00:00Z")), ["Monday", "Tuesday"]); // Friday → Mon, Tue
+    assert.deepEqual(nextTwoWeekdays(new Date("2026-10-07T18:00:00Z")), ["Thursday", "Friday"]);
+  });
+  it("signs as Ruben with phone and booking link", () => {
+    const t = autoReplyText("book", "Maria", new Date("2026-10-07T18:00:00Z"));
+    assert.match(t, /Hi Maria,/);
+    assert.match(t, /Thursday at 10am or Friday at 2pm/);
+    assert.match(t, /calendly\.com/);
+    assert.match(t, /\(661\) 998-1437/);
+    assert.match(autoReplyText("ack", null), /Hi there,/);
+  });
+});

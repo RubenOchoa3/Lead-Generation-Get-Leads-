@@ -66,6 +66,14 @@ export async function campaignWaiting(id: string) {
   return Math.max(0, (a.leads_count ?? 0) - (a.contacted_count ?? 0));
 }
 
+/** Answer a received email in its thread, from the mailbox it was sent to. */
+export async function replyToEmail(r: { replyToUuid: string; eaccount: string; subject: string; text: string }) {
+  await call(`/api/v2/emails/reply`, {
+    method: "POST",
+    body: JSON.stringify({ reply_to_uuid: r.replyToUuid, eaccount: r.eaccount, subject: r.subject, body: { text: r.text } }),
+  });
+}
+
 /** Sending caps only — used by the weekly ramp. Never changes campaign status. */
 export async function setAccountDailyLimit(email: string, dailyLimit: number) {
   await call(`/api/v2/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ daily_limit: dailyLimit }) });
