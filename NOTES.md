@@ -2,6 +2,12 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-08
+- 66 Kern leads sent (43 batch + 23 top-up); second top-up failed (GetLeads search timeout). Kern pool is thin (~50 unique businesses per 270 contacts). Week: 352 sent, 33 bounced (9.4%), 0 real replies, 1 out-of-office.
+- Warm-up only began Oct 3; cold sends started Oct 5-6 (playbook says 14 days). Owner decided: keep campaign + warm-up running together, no pause.
+- Auto-reply live; campaign auto-resumed after approval (new Instantly key appears to work). Clean Test PDF public at /clean-test.pdf.
+- Friday review: bounces (verifier?), widen area beyond Kern, inbox/spam seed test, Email B (Clean Test) 50/50 from Monday, drop link + "Free" from Email A.
+
 ## 2026-10-07
 - Targeting switched to Kern County (company HQ in Kern towns, verified email, ≤1,000 employees); big-company campaign paused, all 90/day to local. 89 Kern leads sent today; early bounces ~2.8% (was ~10%).
 - Fixed: GetLeads REST now returns short column names (co_name, org_domain…) — rows were being dropped. Waiting count now from Instantly.
