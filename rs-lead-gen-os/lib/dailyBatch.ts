@@ -129,6 +129,16 @@ const POOL_FILTERS = `
         and not exists (select 1 from outreach_events e where e.contact_id = c.id and e.event_type in ('bounce','complaint','unsubscribe'))`;
 const ARM_EXPR = `(case when coalesce(substring(replace(coalesce(o.employee_range,''), ',', '') from '[0-9]+'), '0')::int > ${LOCAL_MAX_EMPLOYEES} then 'big' else 'local' end)`;
 
+// One email per business per cycle: skip the company if anyone there entered a campaign within the cooldown.
+const ORG_COOLDOWN_SQL = (n: number) => `and not exists (select 1 from campaign_contacts cc join contacts c2 on c2.id = cc.contact_id
+          where c2.organization_id = o.id and cc.added_at > now() - make_interval(days => $${n}))`;
+
+/** Approve a business for the exact contact picked, so the campaign push sends to that person. */
+async function approvePicked(orgId: string, contactId: string, by: string) {
+  await decide(db, orgId, "approve", { by });
+  await db.query(`update approval_queue set contact_id = $2 where organization_id = $1`, [orgId, contactId]);
+}
+
 const AREA_SQL = (n: number) => `and (cardinality($${n}::text[]) = 0 or lower(coalesce(o.city,'')) = any($${n}::text[]))`;
 
 async function candidates(arm: "local" | "big", limit: number, exclude: string[], area: string[] = []) {
@@ -137,7 +147,7 @@ async function candidates(arm: "local" | "big", limit: number, exclude: string[]
     `select c.id contact_id, o.id organization_id ${POOL_SQL}
         ${POOL_FILTERS}
         and ${ARM_EXPR} = $1
-        and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $2))
+        ${ORG_COOLDOWN_SQL(2)}
         and not exists (select 1 from daily_batch_items i join daily_batches b on b.id = i.batch_id where i.contact_id = c.id and b.status = 'ready')
         and not (c.id = any($3::uuid[]))
         ${AREA_SQL(5)}
@@ -152,7 +162,7 @@ export async function poolCounts() {
   const area = areaOf(await getOutreachSettings());
   const rows = await sql<{ arm: string; n: number }>(
     `select ${ARM_EXPR} arm, count(*)::int n ${POOL_SQL} ${POOL_FILTERS}
-        and not exists (select 1 from campaign_contacts cc where cc.contact_id = c.id and cc.added_at > now() - make_interval(days => $1))
+        ${ORG_COOLDOWN_SQL(1)}
         and not exists (select 1 from daily_batch_items i join daily_batches b on b.id = i.batch_id where i.contact_id = c.id and b.status = 'ready')
         ${AREA_SQL(2)}
       group by 1`, [DEFAULT_COOLDOWN_DAYS, area]);
@@ -252,7 +262,7 @@ export async function topUpToday(count: number) {
   }
   for (const c of picked) {
     await db.query(`insert into daily_batch_items (batch_id, contact_id, organization_id, arm) values ($1,$2,$3,'local') on conflict do nothing`, [batch.id, c.contact_id, c.organization_id]);
-    await decide(db, c.organization_id, "approve", { by: "owner (daily top-up)" });
+    await approvePicked(c.organization_id, c.contact_id, "owner (daily top-up)");
   }
   if (!picked.length) return { found: 0, added: 0 };
   const r = await pushApprovedToCampaign(db, instantly, s.local_campaign_id, { dryRun: false, contactIds: picked.map((c) => c.contact_id) });
@@ -268,7 +278,7 @@ export async function approveAndSend(batchId: string, excludeContactIds: string[
   if (excludeContactIds.length) await db.query(`update daily_batch_items set included = false where batch_id = $1 and contact_id = any($2::uuid[])`, [batchId, excludeContactIds]);
   const items = await sql<{ contact_id: string; organization_id: string; arm: "local" | "big" }>(
     `select contact_id, organization_id, arm from daily_batch_items where batch_id = $1 and included`, [batchId]);
-  for (const i of items) await decide(db, i.organization_id, "approve", { by: "owner (daily batch)" });
+  for (const i of items) await approvePicked(i.organization_id, i.contact_id, "owner (daily batch)");
   const summary: Record<string, unknown> = {};
   for (const arm of ["local", "big"] as const) {
     const ids = items.filter((i) => i.arm === arm).map((i) => i.contact_id);
