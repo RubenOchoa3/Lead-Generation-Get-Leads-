@@ -2,6 +2,10 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-11
+- Owner approved week-1 review plan. Built: Email B campaign "RS · Cycle 1 · Test B · Clean Test" (3ddb5661-c768-4b5a-880b-d7688613b56f, draft, needs owner's activation OK); app splits local leads 50/50 A/B; B "yes" auto-reply sends /clean-test.pdf; area = Kern + Tulare/Kings/Fresno towns; pool skips email-domain ≠ company-domain contacts (commit 8f80875). Fixed top-up re-picking un-addable leads (af5407e).
+- Oct 9 ended at 84/90 (30 still waiting in A, send Mon). Wed Oct 14: drop "Free" + Calendly link from Email A (owner approved; reminder set).
+
 ## 2026-10-08
 - 66 Kern leads sent (43 batch + 23 top-up); second top-up failed (GetLeads search timeout). Kern pool is thin (~50 unique businesses per 270 contacts). Week: 352 sent, 33 bounced (9.4%), 0 real replies, 1 out-of-office.
 - Warm-up only began Oct 3; cold sends started Oct 5-6 (playbook says 14 days). Owner decided: keep campaign + warm-up running together, no pause.

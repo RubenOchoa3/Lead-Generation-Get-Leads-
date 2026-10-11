@@ -11,6 +11,9 @@ Rules: `.claude/skills/cold-email-playbook/SKILL.md`. Newest entries at the top 
 - **Experiment (10%)** — `RS · Cycle 1 · Experiment · Big companies` (59861f3c-357f-45ba-abda-631d90dd84b3):
   same offer, opens with "is cleaning decided locally or by corporate — who should I talk to?"
 - No Iterate (20%) arm yet — first candidate after ~300 local sends.
+- **Test B (from Oct 12, 50% of local)** — `RS · Cycle 1 · Test B · Clean Test` (3ddb5661-c768-4b5a-880b-d7688613b56f):
+  subject "5-minute clean test", offers the free 5-Minute Clean Test checklist, no link, no call ask; a "yes" gets the
+  PDF link automatically. Email A gets 50% meanwhile. Judge on ~300 delivered each.
 
 ## Proven lessons
 _None yet — need closed deals before anything goes here._
