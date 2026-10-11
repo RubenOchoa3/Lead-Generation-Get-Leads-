@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { Db } from "@/lib/db";
 import { notifyOwner } from "@/lib/notify";
 import { autoReplyDelayMs, claimAutoReply, pickAutoReply, sendAutoReply, type AutoReplyJob } from "@/lib/autoReply";
+import { getOutreachSettings } from "@/lib/dailyBatch";
 
 /** "no thanks" / unsubscribe-style replies honour the opt-out line in every email. */
 export const OPT_OUT = /\b(no thanks|no thank you|not interested|unsubscribe|remove me|stop emailing|take me off|do not (contact|email))\b/i;
@@ -85,7 +86,9 @@ export async function recordInstantlyEvent(db: Db, e: InstantlyEvent) {
     const phone = who?.phone ?? s(e.phone);
 
     if (type === "reply") {
-      const kind = pickAutoReply(rawType, classification, replyText);
+      let kind = pickAutoReply(rawType, classification, replyText);
+      // Email B offered the Clean Test, so a "yes" there gets the checklist link, not walkthrough times.
+      if (kind === "book" && s(e.campaign_id) && s(e.campaign_id) === (await getOutreachSettings()).test_campaign_id) kind = "cleantest";
       const replyEmailId = s(e.email_id), eaccount = s(e.email_account);
       if (!kind || !replyEmailId || !eaccount || !email) auto = "not auto-answered";
       else {

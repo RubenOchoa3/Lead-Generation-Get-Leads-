@@ -249,3 +249,24 @@ describe("auto-reply to cold email replies", async () => {
     assert.match(autoReplyText("ack", null), /Hi there,/);
   });
 });
+
+describe("A/B test: Email A vs Email B", async () => {
+  const { splitAB, abLimits } = await import("../lib/dailyBatch");
+  const { autoReplyText } = await import("../lib/autoReply");
+  it("splits leads 50/50, alternating", () => {
+    const { a, b } = splitAB([1, 2, 3, 4, 5, 6, 7], 0.5);
+    assert.deepEqual(b, [1, 3, 5, 7]);
+    assert.deepEqual(a, [2, 4, 6]);
+    assert.deepEqual(splitAB([1, 2, 3], 0), { a: [1, 2, 3], b: [] });
+  });
+  it("splits the daily cap between the two campaigns", () => {
+    assert.deepEqual(abLimits({ test_campaign_id: "x", test_share: 0.5 }, 90), { a: 45, b: 45 });
+    assert.deepEqual(abLimits({ test_share: 0.5 }, 90), { a: 90, b: 0 });
+  });
+  it("Email B's yes gets the Clean Test link", () => {
+    const t = autoReplyText("cleantest", "Maria");
+    assert.match(t, /clean-test\.pdf/);
+    assert.match(t, /fix it/);
+    assert.match(t, /\(661\) 998-1437/);
+  });
+});

@@ -27,11 +27,17 @@ export type OutreachSettings = {
   big_paused?: boolean;
   /** Which target the saved fill offsets belong to; a new target restarts paging from 0. */
   fill_target_key?: string;
+  /** A/B test: share of the local leads that go to the test campaign (Email B) instead of Email A. */
+  test_campaign_id?: string;
+  test_share?: number;
 };
 
 /** Kern County towns — companies headquartered here are truly local to R&S. */
 export const KERN_CITIES = ["Bakersfield", "Delano", "Tehachapi", "Ridgecrest", "Wasco", "Shafter", "Arvin", "McFarland", "Taft",
   "California City", "Lamont", "Frazier Park", "Mojave", "Lake Isabella", "Rosamond", "Oildale", "Kernville", "Buttonwillow", "Maricopa", "Boron"];
+/** Neighbouring counties added Oct 2026 when Kern alone could no longer fill 90 a day (owner OK'd). */
+export const TULARE_KINGS_FRESNO_CITIES = ["Visalia", "Tulare", "Porterville", "Dinuba", "Exeter", "Lindsay", "Farmersville", "Woodlake",
+  "Hanford", "Lemoore", "Corcoran", "Avenal", "Fresno", "Clovis", "Selma", "Reedley", "Sanger", "Kingsburg", "Fowler", "Parlier"];
 
 export const DEFAULT_OUTREACH: OutreachSettings = {
   local_campaign_id: "65e5efa2-4d18-4f38-a632-9d1a292369e2",
@@ -40,9 +46,25 @@ export const DEFAULT_OUTREACH: OutreachSettings = {
   ramp: [5, 10, 15, 20, 25],
   mailboxes: 18,
   big_share: 0.1,
-  target_hq_cities: KERN_CITIES,
+  target_hq_cities: [...KERN_CITIES, ...TULARE_KINGS_FRESNO_CITIES],
   big_paused: true,
+  test_campaign_id: "3ddb5661-c768-4b5a-880b-d7688613b56f",
+  test_share: 0.5,
 };
+
+/** Local daily cap split between Email A and the test campaign (Email B). */
+export function abLimits(s: Pick<OutreachSettings, "test_campaign_id" | "test_share">, local: number) {
+  const b = s.test_campaign_id ? Math.round(local * (s.test_share ?? 0)) : 0;
+  return { a: local - b, b };
+}
+
+/** Split local leads between Email A and Email B, alternating so both get the same mix of lead quality. */
+export function splitAB<T>(items: T[], share: number) {
+  const a: T[] = [], b: T[] = [];
+  let given = 0;
+  items.forEach((it, i) => { if (share > 0 && given < Math.round((i + 1) * share)) { b.push(it); given++; } else a.push(it); });
+  return { a, b };
+}
 
 const areaOf = (s: OutreachSettings) => (s.target_hq_cities ?? []).map((c) => c.toLowerCase());
 /** Daily split: everything to local while the big-company test is paused. */
@@ -102,7 +124,12 @@ export async function applyRamp(date = pacificToday()) {
     if (/@rscentralvalleycleaning\.com$/i.test(email)) continue; // main domain is never a sender
     try { await setAccountDailyLimit(email, perMailbox); } catch (e) { result.errors.push(`${email}: ${(e as Error).message}`); }
   }
-  try { await setCampaignDailyLimit(s.local_campaign_id, result.local); if (result.big > 0) await setCampaignDailyLimit(s.big_campaign_id, result.big); }
+  const { a, b } = abLimits(s, result.local);
+  try {
+    await setCampaignDailyLimit(s.local_campaign_id, a);
+    if (b > 0 && s.test_campaign_id) await setCampaignDailyLimit(s.test_campaign_id, b);
+    if (result.big > 0) await setCampaignDailyLimit(s.big_campaign_id, result.big);
+  }
   catch (e) { result.errors.push(`campaign limits: ${(e as Error).message}`); }
   if (!result.errors.length) await saveOutreachSettings({ ...s, applied_per_mailbox: perMailbox });
   console.log(`[ramp] ${JSON.stringify({ ...result, health: { ...health } })}`);
@@ -124,6 +151,8 @@ const POOL_SQL = `
       where coalesce(q.status, 'Needs Review') in ('Needs Review','Approved')`;
 const POOL_FILTERS = `
         and c.email is not null and upper(coalesce(c.email_status,'')) = 'VALID'
+        and (coalesce(o.domain,'') = '' or split_part(lower(c.email),'@',2) = lower(o.domain)
+             or lower(coalesce(o.website,'')) like '%' || split_part(lower(c.email),'@',2) || '%')
         and coalesce(o.business_type,'') <> 'Janitorial competitor'
         and not exists (select 1 from suppression_list s where s.organization_id = o.id or (s.email is not null and lower(s.email) = lower(c.email)))
         and not exists (select 1 from outreach_events e where e.contact_id = c.id and e.event_type in ('bounce','complaint','unsubscribe'))`;
@@ -221,7 +250,7 @@ export async function buildDailyBatch(date = pacificToday()) {
   const picked: Record<"local" | "big", Candidate[]> = { local: [], big: [] };
   const notes: string[] = [];
   // Leads approved earlier that the campaign hasn't sent yet go out first, so only top up to today's cap.
-  const waiting = { local: await waitingInCampaign(s.local_campaign_id), big: s.big_paused ? 0 : await waitingInCampaign(s.big_campaign_id) };
+  const waiting = { local: await waitingInCampaign(s.local_campaign_id) + (s.test_campaign_id ? await waitingInCampaign(s.test_campaign_id) : 0), big: s.big_paused ? 0 : await waitingInCampaign(s.big_campaign_id) };
   if (waiting.local + waiting.big) notes.push(`${waiting.local + waiting.big} approved earlier still waiting to send (${waiting.local} local, ${waiting.big} big) — they go out first`);
   for (const [arm, full] of [["local", localTarget], ["big", bigTarget]] as const) {
     const want = Math.max(0, full - waiting[arm]);
@@ -265,8 +294,24 @@ export async function topUpToday(count: number) {
     await approvePicked(c.organization_id, c.contact_id, "owner (daily top-up)");
   }
   if (!picked.length) return { found: 0, added: 0 };
-  const r = await pushApprovedToCampaign(db, instantly, s.local_campaign_id, { dryRun: false, contactIds: picked.map((c) => c.contact_id) });
-  return { found: picked.length, added: r.added, blocked: r.blocked.length };
+  const r = await pushLocal(s, picked.map((c) => c.contact_id));
+  return { found: picked.length, added: r.added, blocked: r.blocked, a: r.a, b: r.b };
+}
+
+/** Add local leads to Email A and (while the A/B test runs) Email B, and wake a campaign that went to "Completed". */
+async function pushLocal(s: OutreachSettings, ids: string[]) {
+  const testOn = !!s.test_campaign_id && (s.test_share ?? 0) > 0;
+  const { a, b } = testOn ? splitAB(ids, s.test_share!) : { a: ids, b: [] as string[] };
+  const out = { added: 0, blocked: 0, skippedBySender: 0, a: 0, b: 0, resumed: false };
+  for (const [key, camp, list] of [["a", s.local_campaign_id, a], ["b", s.test_campaign_id ?? "", b]] as const) {
+    if (!list.length || !camp) continue;
+    const r = await pushApprovedToCampaign(db, instantly, camp, { dryRun: false, contactIds: [...list] });
+    out.added += r.added; out.blocked += r.blocked.length; out.skippedBySender += r.skippedBySender; out[key] = r.added;
+    if (r.added > 0) {
+      try { out.resumed = (await resumeIfCompleted(camp)) || out.resumed; } catch (e) { console.error(`[daily-batch] resume ${camp}: ${(e as Error).message}`); }
+    }
+  }
+  return out;
 }
 
 /** Owner approved: approve each lead, then add them to the right campaign (they send in the next window). */
@@ -283,13 +328,9 @@ export async function approveAndSend(batchId: string, excludeContactIds: string[
   for (const arm of ["local", "big"] as const) {
     const ids = items.filter((i) => i.arm === arm).map((i) => i.contact_id);
     if (!ids.length) continue;
-    const r = await pushApprovedToCampaign(db, instantly, arm === "local" ? s.local_campaign_id : s.big_campaign_id,
-      { dryRun: false, contactIds: ids, allowLarge: arm === "big" });
-    let resumed = false;
-    if (r.added > 0 && arm === "local") {
-      try { resumed = await resumeIfCompleted(s.local_campaign_id); } catch (e) { console.error(`[daily-batch] resume local campaign: ${(e as Error).message}`); }
-    }
-    summary[arm] = { added: r.added, blocked: r.blocked.length, skippedBySender: r.skippedBySender, ...(resumed ? { resumed } : {}) };
+    if (arm === "local") { summary.local = await pushLocal(s, ids); continue; }
+    const r = await pushApprovedToCampaign(db, instantly, s.big_campaign_id, { dryRun: false, contactIds: ids, allowLarge: true });
+    summary[arm] = { added: r.added, blocked: r.blocked.length, skippedBySender: r.skippedBySender };
   }
   await db.query(`update daily_batches set status = 'sent', sent_at = now(), sent_summary = $2 where id = $1`, [batchId, JSON.stringify(summary)]);
   return summary;

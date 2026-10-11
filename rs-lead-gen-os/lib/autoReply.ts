@@ -7,9 +7,10 @@ import { replyToEmail } from "@/lib/providers/instantly";
  * One auto-reply per lead per campaign; never to auto-replies, opt-outs or "not interested".
  * Ruben still follows up personally — his phone gets every reply.
  */
-export type AutoReplyKind = "book" | "ack";
+export type AutoReplyKind = "book" | "ack" | "cleantest";
 
 const PHONE = "(661) 998-1437";
+const cleanTestUrl = () => process.env.CLEAN_TEST_URL || "https://web-production-3079.up.railway.app/clean-test.pdf";
 const calendly = () => process.env.CALENDLY_URL || "https://calendly.com/rubenochoa-rscentralvalleycleaning/30min";
 const BOOKING_WORDS = /\b(yes|yeah|yep|sure|interested|sounds good|fix it|let'?s do it|come by|schedule|book|available|when can you|walk ?through)\b/i;
 
@@ -38,6 +39,18 @@ export function nextTwoWeekdays(now = new Date()) {
 
 export function autoReplyText(kind: AutoReplyKind, firstName: string | null, now = new Date()) {
   const hi = `Hi ${firstName?.trim() || "there"},`;
+  if (kind === "cleantest") {
+    return `${hi}
+
+Here it is: ${cleanTestUrl()}
+
+It takes about 5 minutes. Walk your building with it before your cleaner's next visit and mark anything that fails.
+
+If you find more than one, just reply "fix it" or call/text me at ${PHONE}. I'll walk your building myself and give you a written room-by-room plan with one fixed price.
+
+Ruben Ochoa, Owner
+R&S Central Valley Cleaning`;
+  }
   if (kind === "book") {
     const [d1, d2] = nextTwoWeekdays(now);
     return `${hi}
