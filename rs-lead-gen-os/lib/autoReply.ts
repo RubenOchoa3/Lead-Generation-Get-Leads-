@@ -7,7 +7,7 @@ import { replyToEmail } from "@/lib/providers/instantly";
  * One auto-reply per lead per campaign; never to auto-replies, opt-outs or "not interested".
  * Ruben still follows up personally — his phone gets every reply.
  */
-export type AutoReplyKind = "book" | "ack" | "cleantest";
+export type AutoReplyKind = "book" | "ack" | "cleantest" | "photos";
 
 const PHONE = "(661) 998-1437";
 const cleanTestUrl = () => process.env.CLEAN_TEST_URL || "https://web-production-3079.up.railway.app/clean-test.pdf";
@@ -39,6 +39,16 @@ export function nextTwoWeekdays(now = new Date()) {
 
 export function autoReplyText(kind: AutoReplyKind, firstName: string | null, now = new Date()) {
   const hi = `Hi ${firstName?.trim() || "there"},`;
+  if (kind === "photos") {
+    return `${hi}
+
+Great, send them over. Just reply here with the 3 photos (restroom, breakroom, front entrance), or text them to ${PHONE}.
+
+I'll look at them myself and send back what a professional cleaner would flag, spot by spot, within a day.
+
+Ruben Ochoa, Owner
+R&S Central Valley Cleaning`;
+  }
   if (kind === "cleantest") {
     return `${hi}
 

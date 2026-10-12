@@ -30,6 +30,9 @@ export type OutreachSettings = {
   /** A/B test: share of the local leads that go to the test campaign (Email B) instead of Email A. */
   test_campaign_id?: string;
   test_share?: number;
+  /** 10% experiment arm (Email C). */
+  experiment_campaign_id?: string;
+  experiment_share?: number;
 };
 
 /** Kern County towns — companies headquartered here are truly local to R&S. */
@@ -49,21 +52,34 @@ export const DEFAULT_OUTREACH: OutreachSettings = {
   target_hq_cities: [...KERN_CITIES, ...TULARE_KINGS_FRESNO_CITIES],
   big_paused: true,
   test_campaign_id: "3ddb5661-c768-4b5a-880b-d7688613b56f",
-  test_share: 0.5,
+  test_share: 0.45,
+  experiment_campaign_id: "1792d6da-4bc7-4a61-8ea8-5a1feda038ea",
+  experiment_share: 0.1,
 };
 
-/** Local daily cap split between Email A and the test campaign (Email B). */
-export function abLimits(s: Pick<OutreachSettings, "test_campaign_id" | "test_share">, local: number) {
-  const b = s.test_campaign_id ? Math.round(local * (s.test_share ?? 0)) : 0;
-  return { a: local - b, b };
+type ArmShares = Pick<OutreachSettings, "test_campaign_id" | "test_share" | "experiment_campaign_id" | "experiment_share">;
+const shares = (s: ArmShares) => ({
+  b: s.test_campaign_id ? s.test_share ?? 0 : 0,
+  c: s.experiment_campaign_id ? s.experiment_share ?? 0 : 0,
+});
+
+/** Local daily cap split between Email A, the test (Email B) and the experiment (Email C). */
+export function abLimits(s: ArmShares, local: number) {
+  const { b: sb, c: sc } = shares(s);
+  const c = Math.round(local * sc), b = Math.floor(local * sb); // A (the control) keeps any odd one
+  return { a: local - b - c, b, c };
 }
 
-/** Split local leads between Email A and Email B, alternating so both get the same mix of lead quality. */
-export function splitAB<T>(items: T[], share: number) {
-  const a: T[] = [], b: T[] = [];
-  let given = 0;
-  items.forEach((it, i) => { if (share > 0 && given < Math.round((i + 1) * share)) { b.push(it); given++; } else a.push(it); });
-  return { a, b };
+/** Split local leads across A/B/C, interleaved so every arm gets the same mix of lead quality. */
+export function splitArms<T>(items: T[], s: ArmShares) {
+  const { b: sb, c: sc } = shares(s);
+  const out = { a: [] as T[], b: [] as T[], c: [] as T[] };
+  items.forEach((it, i) => {
+    if (sc > 0 && out.c.length < Math.round((i + 1) * sc)) out.c.push(it);
+    else if (sb > 0 && out.b.length < Math.round((i + 1) * sb)) out.b.push(it);
+    else out.a.push(it);
+  });
+  return out;
 }
 
 const areaOf = (s: OutreachSettings) => (s.target_hq_cities ?? []).map((c) => c.toLowerCase());
@@ -124,10 +140,11 @@ export async function applyRamp(date = pacificToday()) {
     if (/@rscentralvalleycleaning\.com$/i.test(email)) continue; // main domain is never a sender
     try { await setAccountDailyLimit(email, perMailbox); } catch (e) { result.errors.push(`${email}: ${(e as Error).message}`); }
   }
-  const { a, b } = abLimits(s, result.local);
+  const { a, b, c } = abLimits(s, result.local);
   try {
     await setCampaignDailyLimit(s.local_campaign_id, a);
     if (b > 0 && s.test_campaign_id) await setCampaignDailyLimit(s.test_campaign_id, b);
+    if (c > 0 && s.experiment_campaign_id) await setCampaignDailyLimit(s.experiment_campaign_id, c);
     if (result.big > 0) await setCampaignDailyLimit(s.big_campaign_id, result.big);
   }
   catch (e) { result.errors.push(`campaign limits: ${(e as Error).message}`); }
@@ -250,7 +267,8 @@ export async function buildDailyBatch(date = pacificToday()) {
   const picked: Record<"local" | "big", Candidate[]> = { local: [], big: [] };
   const notes: string[] = [];
   // Leads approved earlier that the campaign hasn't sent yet go out first, so only top up to today's cap.
-  const waiting = { local: await waitingInCampaign(s.local_campaign_id) + (s.test_campaign_id ? await waitingInCampaign(s.test_campaign_id) : 0), big: s.big_paused ? 0 : await waitingInCampaign(s.big_campaign_id) };
+  const waiting = { local: await waitingInCampaign(s.local_campaign_id) + (s.test_campaign_id ? await waitingInCampaign(s.test_campaign_id) : 0)
+    + (s.experiment_campaign_id ? await waitingInCampaign(s.experiment_campaign_id) : 0), big: s.big_paused ? 0 : await waitingInCampaign(s.big_campaign_id) };
   if (waiting.local + waiting.big) notes.push(`${waiting.local + waiting.big} approved earlier still waiting to send (${waiting.local} local, ${waiting.big} big) — they go out first`);
   for (const [arm, full] of [["local", localTarget], ["big", bigTarget]] as const) {
     const want = Math.max(0, full - waiting[arm]);
@@ -295,15 +313,14 @@ export async function topUpToday(count: number) {
   }
   if (!picked.length) return { found: 0, added: 0 };
   const r = await pushLocal(s, picked.map((c) => c.contact_id));
-  return { found: picked.length, added: r.added, blocked: r.blocked, a: r.a, b: r.b };
+  return { found: picked.length, added: r.added, blocked: r.blocked, a: r.a, b: r.b, c: r.c };
 }
 
-/** Add local leads to Email A and (while the A/B test runs) Email B, and wake a campaign that went to "Completed". */
+/** Add local leads to Email A / B / C per the split, and wake a campaign that went to "Completed". */
 async function pushLocal(s: OutreachSettings, ids: string[]) {
-  const testOn = !!s.test_campaign_id && (s.test_share ?? 0) > 0;
-  const { a, b } = testOn ? splitAB(ids, s.test_share!) : { a: ids, b: [] as string[] };
-  const out = { added: 0, blocked: 0, skippedBySender: 0, a: 0, b: 0, resumed: false };
-  for (const [key, camp, list] of [["a", s.local_campaign_id, a], ["b", s.test_campaign_id ?? "", b]] as const) {
+  const { a, b, c } = splitArms(ids, s);
+  const out = { added: 0, blocked: 0, skippedBySender: 0, a: 0, b: 0, c: 0, resumed: false };
+  for (const [key, camp, list] of [["a", s.local_campaign_id, a], ["b", s.test_campaign_id ?? "", b], ["c", s.experiment_campaign_id ?? "", c]] as const) {
     if (!list.length || !camp) continue;
     const r = await pushApprovedToCampaign(db, instantly, camp, { dryRun: false, contactIds: [...list] });
     out.added += r.added; out.blocked += r.blocked.length; out.skippedBySender += r.skippedBySender; out[key] = r.added;

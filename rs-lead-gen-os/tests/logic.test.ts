@@ -251,17 +251,24 @@ describe("auto-reply to cold email replies", async () => {
 });
 
 describe("A/B test: Email A vs Email B", async () => {
-  const { splitAB, abLimits } = await import("../lib/dailyBatch");
+  const { splitArms, abLimits } = await import("../lib/dailyBatch");
   const { autoReplyText } = await import("../lib/autoReply");
-  it("splits leads 50/50, alternating", () => {
-    const { a, b } = splitAB([1, 2, 3, 4, 5, 6, 7], 0.5);
-    assert.deepEqual(b, [1, 3, 5, 7]);
-    assert.deepEqual(a, [2, 4, 6]);
-    assert.deepEqual(splitAB([1, 2, 3], 0), { a: [1, 2, 3], b: [] });
+  const abc = { test_campaign_id: "b", test_share: 0.45, experiment_campaign_id: "c", experiment_share: 0.1 };
+  it("splits leads 45/45/10, interleaved", () => {
+    const { a, b, c } = splitArms(Array.from({ length: 90 }, (_, i) => i), abc);
+    assert.equal(c.length, 9); assert.equal(a.length + b.length, 81); assert.ok(Math.abs(a.length - b.length) <= 1);
+    const small = splitArms([1, 2, 3, 4], { test_campaign_id: "b", test_share: 0.5 });
+    assert.deepEqual(small, { a: [2, 4], b: [1, 3], c: [] });
+    assert.deepEqual(splitArms([1, 2, 3], {}), { a: [1, 2, 3], b: [], c: [] });
   });
-  it("splits the daily cap between the two campaigns", () => {
-    assert.deepEqual(abLimits({ test_campaign_id: "x", test_share: 0.5 }, 90), { a: 45, b: 45 });
-    assert.deepEqual(abLimits({ test_share: 0.5 }, 90), { a: 90, b: 0 });
+  it("splits the daily cap across the campaigns", () => {
+    assert.deepEqual(abLimits(abc, 90), { a: 41, b: 40, c: 9 });
+    assert.deepEqual(abLimits({ test_share: 0.5 }, 90), { a: 90, b: 0, c: 0 });
+  });
+  it("Email C's yes asks for the photos", () => {
+    const t = autoReplyText("photos", "Maria");
+    assert.match(t, /3 photos/);
+    assert.match(t, /within a day/);
   });
   it("Email B's yes gets the Clean Test link", () => {
     const t = autoReplyText("cleantest", "Maria");

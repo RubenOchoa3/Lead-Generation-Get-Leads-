@@ -87,8 +87,12 @@ export async function recordInstantlyEvent(db: Db, e: InstantlyEvent) {
 
     if (type === "reply") {
       let kind = pickAutoReply(rawType, classification, replyText);
-      // Email B offered the Clean Test, so a "yes" there gets the checklist link, not walkthrough times.
-      if (kind === "book" && s(e.campaign_id) && s(e.campaign_id) === (await getOutreachSettings()).test_campaign_id) kind = "cleantest";
+      // Email B offered the Clean Test and Email C asked for 3 photos, so a "yes" there gets that, not walkthrough times.
+      if (kind === "book" && s(e.campaign_id)) {
+        const os = await getOutreachSettings();
+        if (s(e.campaign_id) === os.test_campaign_id) kind = "cleantest";
+        else if (s(e.campaign_id) === os.experiment_campaign_id) kind = "photos";
+      }
       const replyEmailId = s(e.email_id), eaccount = s(e.email_account);
       if (!kind || !replyEmailId || !eaccount || !email) auto = "not auto-answered";
       else {
