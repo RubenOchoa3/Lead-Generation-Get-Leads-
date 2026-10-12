@@ -7,11 +7,13 @@ import { approveAndSend, sendDate, topUpToday } from "@/lib/dailyBatch";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const body = z.object({ skipArms: z.array(z.enum(["local", "big"])).default([]), topUp: z.number().int().min(1).max(200).optional() });
+const body = z.object({ skipArms: z.array(z.enum(["local", "big"])).default([]), topUp: z.number().int().min(1).max(200).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
 /**
  * Approve today's batch on the owner's behalf when they ask Claude to (they're away from the dashboard).
- * Machine-only (`Authorization: Bearer $CRON_SECRET`); `skipArms` leaves out a whole group, e.g. ["big"].
+ * Machine-only (`Authorization: Bearer $CRON_SECRET`); `skipArms` leaves out a whole group, e.g. ["big"];
+ * `date` approves a specific day's batch (e.g. one the owner approved after that day's window).
  */
 export async function POST(req: Request) {
   if (!hasMachineSecret(req, "CRON_SECRET")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,7 +23,7 @@ export async function POST(req: Request) {
     try { return NextResponse.json({ ok: true, topUp: await topUpToday(b.topUp) }); }
     catch (e) { return NextResponse.json({ error: String((e as Error).message ?? e) }, { status: 400 }); }
   }
-  const batch = await one<{ id: string; status: string }>("select id, status from daily_batches where batch_date = $1", [sendDate()]);
+  const batch = await one<{ id: string; status: string }>("select id, status from daily_batches where batch_date = $1", [b.date ?? sendDate()]);
   if (!batch) return NextResponse.json({ error: "No batch for today yet" }, { status: 404 });
   if (batch.status !== "ready") return NextResponse.json({ ok: true, skipped: `batch already ${batch.status}` });
   const skip = await sql<{ contact_id: string }>(
