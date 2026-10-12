@@ -36,7 +36,8 @@ _None yet — need closed deals before anything goes here._
 - **Experiment (big companies):** 18 sent, 3 bounced, 0 replies — paused since Oct 6.
 - **Health:** bounce well over the 3% line → weekly ramp held at 5/mailbox. All 18 mailboxes warmup 100%, but warmup
   only started Oct 3 and cold sends began Oct 5 (playbook says 14 days). Owner chose to keep sending during warmup.
-  All 18 senders are Microsoft; ~60% of recipients are on Microsoft, ~25% behind security gateways.
+  Correction (Oct 12): all 18 senders are Google Workspace mailboxes (InboxKit), not Microsoft; the recipient
+  provider split from Instantly's esp codes is unverified.
 - **Data quality:** several bounces have an email domain that doesn't match the company (rlawson@google.com for
   Twin Electric, @air-streams.com for Green Energy TSG, @adultedventura.edu for a vision clinic) → stale GetLeads data.
   Kern pool nearly used up after ~230 businesses (contacts cluster ~5 per business); Oct 9 reached 84 of 90 after
