@@ -2,6 +2,9 @@
 
 Newest entries at the top. Keep each entry to a few lines.
 
+## 2026-10-12
+- Email C "3 photos" experiment added (1792d6da-4bc7-4a61-8ea8-5a1feda038ea, draft); split now A 45 / B 45 / C 10 (commit 99bf907). B and C need owner's "activate" OK.
+
 ## 2026-10-11
 - Owner approved week-1 review plan. Built: Email B campaign "RS · Cycle 1 · Test B · Clean Test" (3ddb5661-c768-4b5a-880b-d7688613b56f, draft, needs owner's activation OK); app splits local leads 50/50 A/B; B "yes" auto-reply sends /clean-test.pdf; area = Kern + Tulare/Kings/Fresno towns; pool skips email-domain ≠ company-domain contacts (commit 8f80875). Fixed top-up re-picking un-addable leads (af5407e).
 - Oct 9 ended at 84/90 (30 still waiting in A, send Mon). Wed Oct 14: drop "Free" + Calendly link from Email A (owner approved; reminder set).

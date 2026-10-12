@@ -13,7 +13,10 @@ Rules: `.claude/skills/cold-email-playbook/SKILL.md`. Newest entries at the top 
 - No Iterate (20%) arm yet — first candidate after ~300 local sends.
 - **Test B (from Oct 12, 50% of local)** — `RS · Cycle 1 · Test B · Clean Test` (3ddb5661-c768-4b5a-880b-d7688613b56f):
   subject "5-minute clean test", offers the free 5-Minute Clean Test checklist, no link, no call ask; a "yes" gets the
-  PDF link automatically. Email A gets 50% meanwhile. Judge on ~300 delivered each.
+  PDF link automatically. Judge on ~300 delivered each.
+- **Experiment C (from Oct 12, 10% of local)** — `RS · Cycle 1 · Experiment C · 3 Photos` (1792d6da-4bc7-4a61-8ea8-5a1feda038ea):
+  subject "3 photos", asks for photos of restroom/breakroom/entrance (reply or text), owner sends back what a pro would
+  flag within a day. Split is A 45% / B 45% / C 10%. C needs ~3–4 weeks to reach a readable sample.
 
 ## Proven lessons
 _None yet — need closed deals before anything goes here._
