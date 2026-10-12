@@ -210,6 +210,13 @@ describe("daily batch helpers", async () => {
     assert.deepEqual(rampStep(s, "2026-12-30"), { week: 13, perMailbox: 25 });
     assert.deepEqual(rampStep(s, "2026-10-01"), { week: 1, perMailbox: 5 });
   });
+  it("builds the batch for the next sending day after 1 PM and on weekends", async () => {
+    const { sendDate } = await import("../lib/dailyBatch");
+    assert.equal(sendDate(new Date("2026-10-12T15:00:00Z")), "2026-10-12"); // Mon 8 AM PDT → today
+    assert.equal(sendDate(new Date("2026-10-13T03:00:00Z")), "2026-10-13"); // Mon 8 PM PDT → Tue
+    assert.equal(sendDate(new Date("2026-10-17T03:00:00Z")), "2026-10-19"); // Fri 8 PM → Mon
+    assert.equal(sendDate(new Date("2026-10-11T18:00:00Z")), "2026-10-12"); // Sun → Mon
+  });
   it("uses the Pacific calendar day", () => {
     assert.equal(pacificToday(new Date("2026-10-06T05:00:00Z")), "2026-10-05"); // 10 PM PDT
     assert.equal(pacificToday(new Date("2026-10-06T16:00:00Z")), "2026-10-06");

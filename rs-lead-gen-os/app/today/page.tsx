@@ -1,7 +1,7 @@
 import { one, sql } from "@/lib/db";
 import { DbError, Kpi, Panel } from "@/components/ui";
 import TodayBatch, { type BatchLead } from "@/components/TodayBatch";
-import { getOutreachSettings, pacificToday, poolCounts, rampStep } from "@/lib/dailyBatch";
+import { getOutreachSettings, poolCounts, rampStep, sendDate } from "@/lib/dailyBatch";
 import { getCampaignDetail, instantlyConfigured } from "@/lib/providers/instantly";
 import { htmlToText, renderMerge } from "@/lib/emailPreview";
 
@@ -20,7 +20,7 @@ async function preview(campaignId: string, lead?: BatchLead) {
 
 export default async function Today() {
   try {
-    const date = pacificToday();
+    const date = sendDate();
     const s = await getOutreachSettings();
     const { week, perMailbox } = rampStep(s, date);
     const cap = (s.applied_per_mailbox ?? perMailbox) * s.mailboxes;
@@ -47,7 +47,7 @@ export default async function Today() {
           <Kpi label={`Week ${week} sending cap`} value={cap} sub={`${s.applied_per_mailbox ?? perMailbox}/mailbox × ${s.mailboxes} · raises weekly if healthy`} />
         </div>
         <p className="small muted" style={{ margin: "8px 0" }}>
-          <b>{(pool.local + pool.big).toLocaleString()}</b> more leads already in the platform are ready to email ({pool.local.toLocaleString()} local · {pool.big.toLocaleString()} big companies), about {Math.max(1, Math.ceil((pool.local + pool.big) / Math.max(1, cap)))} sending day(s) at the current cap. Each morning&rsquo;s batch uses these first and only searches Getlead when they run out.
+          <b>{(pool.local + pool.big).toLocaleString()}</b> more leads already in the platform are ready to email ({pool.local.toLocaleString()} local · {pool.big.toLocaleString()} big companies), about {Math.max(1, Math.ceil((pool.local + pool.big) / Math.max(1, cap)))} sending day(s) at the current cap. Each evening&rsquo;s batch uses these first and only searches Getlead when they run out.
         </p>
         {batch?.note && <div className="notice"><div><b>Heads up</b>{batch.note}</div></div>}
         {batch?.status === "sent" && <div className="notice info"><div><b>Approved and sent to Instantly</b>{Object.entries(batch.sent_summary ?? {}).map(([k, v]: any) => `${k === "local" ? "Local" : "Big companies"}: ${v.added} added`).join(" · ")}</div></div>}
@@ -60,7 +60,7 @@ export default async function Today() {
           ))}
         </div>
 
-        <Panel title="Today's people" sub={batch ? (batch.status === "ready" ? "Waiting for your approval" : `Status: ${batch.status}`) : "Built automatically every morning before 5 AM"} pad={false}>
+        <Panel title="Today's people" sub={batch ? (batch.status === "ready" ? "Waiting for your approval" : `Status: ${batch.status}`) : "Built automatically every evening around 8 PM for the next sending day"} pad={false}>
           <div className="panel-body"><TodayBatch batchId={batch?.id ?? null} status={batch?.status ?? null} leads={leads} /></div>
         </Panel>
       </>

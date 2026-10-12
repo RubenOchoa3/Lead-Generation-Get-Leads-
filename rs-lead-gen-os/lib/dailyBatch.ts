@@ -102,6 +102,21 @@ export function pacificToday(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(now);
 }
 
+/**
+ * The sending day a batch is for. Batches are built the evening before so the owner can approve at
+ * night: before 1 PM on a weekday it's today; after that (or on a weekend) it's the next weekday.
+ */
+export function sendDate(now = new Date()) {
+  const parts = (d: Date) => Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles", weekday: "short", hour: "numeric", hourCycle: "h23" }).formatToParts(d).map((p) => [p.type, p.value]));
+  const weekend = (d: Date) => ["Sat", "Sun"].includes(parts(d).weekday);
+  let d = now;
+  if (weekend(d) || Number(parts(d).hour) >= 13) {
+    do { d = new Date(d.getTime() + 86_400_000); } while (weekend(d));
+  }
+  return pacificToday(d);
+}
+
 /** Ramp step for a date: week 1 = ramp[0] … capped at the last step. */
 export function rampStep(s: Pick<OutreachSettings, "start_date" | "ramp">, date: string) {
   const days = Math.floor((Date.parse(date) - Date.parse(s.start_date)) / 864e5);
@@ -124,7 +139,7 @@ async function recentHealth() {
  * Apply this week's cap to every sending mailbox and split it 90/10 across the two campaigns.
  * Holds at last week's level if bounces ≥ 3% or there were spam complaints.
  */
-export async function applyRamp(date = pacificToday()) {
+export async function applyRamp(date = sendDate()) {
   const s = await getOutreachSettings();
   const { week, perMailbox: planned } = rampStep(s, date);
   const health = await recentHealth();
@@ -236,7 +251,7 @@ async function fill(arm: "local" | "big", need: number, s: OutreachSettings) {
 }
 
 /** Throw away today's unapproved batch (e.g. after changing the target) so it can be rebuilt. Sent batches stay. */
-export async function discardReadyBatch(date = pacificToday()) {
+export async function discardReadyBatch(date = sendDate()) {
   await db.query(`delete from daily_batch_items where batch_id in (select id from daily_batches where batch_date = $1 and status = 'ready')`, [date]);
   const r = await db.query(`delete from daily_batches where batch_date = $1 and status = 'ready'`, [date]);
   return (r.rowCount ?? 0) > 0;
@@ -256,7 +271,7 @@ async function waitingInCampaign(externalId: string) {
   return r?.n ?? 0;
 }
 
-export async function buildDailyBatch(date = pacificToday()) {
+export async function buildDailyBatch(date = sendDate()) {
   const existing = await one<{ id: string }>("select id from daily_batches where batch_date = $1", [date]);
   if (existing) return { batchId: existing.id, created: false };
   const s = await getOutreachSettings();
@@ -298,7 +313,7 @@ export async function buildDailyBatch(date = pacificToday()) {
  */
 export async function topUpToday(count: number) {
   const s = await getOutreachSettings();
-  const date = pacificToday();
+  const date = sendDate();
   const batch = await one<{ id: string }>("select id from daily_batches where batch_date = $1", [date]);
   if (!batch) throw new Error("No batch for today yet");
   const area = areaOf(s);
